@@ -101,7 +101,12 @@ Adotamos especialização **joined** (subtipos em tabelas próprias, PK = FK do 
 
 ### 4.3 Nota de implementação (SQL da Etapa 1)
 
-No DER/conceitual a especialização é **parcial e disjunta**. No `CREATE TABLE` da Etapa 1 (sem triggers) a exclusão mútua **não** é enforced por constraint: o banco *aceitaria* a mesma pessoa nas duas subtabelas. A disjunção fica como regra de negócio/documentação; o seed respeita um papel por profissional.
+No DER/conceitual as duas especializações são **parciais e disjuntas**. No `CREATE TABLE` da Etapa 1 (sem triggers) a exclusão mútua **não** é enforced por constraint, em **nenhum** dos dois níveis:
+
+- **PESSOA → PACIENTE | PROFISSIONAL:** o banco *aceitaria* a mesma `id_pessoa` em `paciente` e `profissional`.
+- **PROFISSIONAL → PRECEPTOR | RESIDENTE:** o banco *aceitaria* o mesmo `id_profissional` em `preceptor` e `residente`.
+
+Isso é uma limitação inerente às constraints declarativas no modelo *joined*: uma `FK` só verifica a existência no supertipo (não a ausência na tabela irmã), um `CHECK` só enxerga colunas da própria linha e o `UNIQUE` só age dentro de uma tabela. Para enforcar de fato seria preciso um **trigger** (Etapa 2) ou o padrão de **discriminador com FK composta** (que desviaria do schema do enunciado). Na Etapa 1 a disjunção fica como regra de negócio/documentação, e o seed respeita um único papel por pessoa/profissional.
 
 ## 5. Modelo relacional
 
@@ -141,6 +146,14 @@ No DER/conceitual a especialização é **parcial e disjunta**. No `CREATE TABLE
 | faturado | procedimento_realizado | Remoção só se ainda não faturado (req. 3) |
 
 Não há coluna `endereco` no schema oficial; update de paciente (P2) usa convênio/alergias/grupo sanguíneo.
+
+### 5.4 Limitação conhecida: consulta 3 ("mês corrente")
+
+O requisito 4 pede, para cada unidade, "a quantidade de plantões escalados por residente **no mês corrente**". Porém `escala` segue o schema do enunciado, que modela a grade como **recorrência semanal** (`dia_semana` ∈ {SEG..DOM} + `turno`), **sem data de calendário**. Não existe, portanto, um mês a filtrar.
+
+**Decisão:** manter o schema exatamente como o enunciado define (sem adicionar coluna de data/competência) e interpretar "mês corrente" como **as escalas vigentes no sistema**. A consulta 3 (`db/consultas.sql`) agrega os plantões por unidade e residente sobre a grade vigente.
+
+A alternativa seria acrescentar uma competência (`ano`/`mes`) e incluí-la no `UNIQUE`, mas isso desviaria do `UNIQUE(id_unidade, dia_semana, turno, id_residente)` fixado no enunciado; optou-se pela fidelidade ao modelo dado.
 
 ## 6. Normalização até 3FN
 

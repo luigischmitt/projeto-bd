@@ -18,7 +18,7 @@ CREATE TABLE pessoa (
     cpf              CHAR(11) NOT NULL,
     data_nascimento  DATE NOT NULL,
     is_flamengo      BOOLEAN NOT NULL DEFAULT FALSE,
-    telefone         VARCHAR(20),
+    telefone         VARCHAR(20) NOT NULL,
     CONSTRAINT uq_pessoa_cpf UNIQUE (cpf)
 );
 
