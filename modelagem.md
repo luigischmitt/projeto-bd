@@ -39,37 +39,69 @@ erDiagram
   PRECEPTOR ||--o{ ESCALA : supervisiona
 ```
 
-## 3. Cardinalidades
+## 3. Justificativas de cardinalidade
 
-| Relação | Cardinalidade | Justificativa |
-|---------|---------------|---------------|
-| PESSOA — PACIENTE | 1:0..1 | Especialização joined: no máximo um paciente por pessoa |
-| PESSOA — PROFISSIONAL | 1:0..1 | Idem para profissional |
-| PROFISSIONAL — PRECEPTOR | 1:0..1 | Papel opcional (0..1) |
-| PROFISSIONAL — RESIDENTE | 1:0..1 | Papel opcional (0..1) |
-| PACIENTE — ATENDIMENTO | 1:N | Cada atendimento tem exatamente um paciente |
-| RESIDENTE — ATENDIMENTO | 1:N | Cada atendimento tem exatamente um residente |
-| PRECEPTOR — ATENDIMENTO | 1:N | Cada atendimento tem exatamente um preceptor |
-| ATENDIMENTO — PROCEDIMENTO | N:N | Resolvido por `procedimento_realizado` |
-| UNIDADE — ESCALA | 1:N | Várias escalas por unidade |
-| RESIDENTE — ESCALA | 1:N | Residente em vários plantões |
-| PRECEPTOR — ESCALA | 1:N | Preceptor em vários plantões |
+As cardinalidades seguem o enunciado. Em cada par, lê-se **lado A : lado B**.
 
-## 4. Especialização
+### 3.1 Especializações (1 : 0..1)
 
-### PESSOA → PACIENTE | PROFISSIONAL
+| Relação | Card. | Justificativa |
+|---------|-------|---------------|
+| PESSOA — PACIENTE | 1 : 0..1 | Cada registro de paciente corresponde a **exatamente uma** pessoa (PK compartilhada). Uma pessoa **pode** não ser paciente (especialização parcial), logo o máximo no subtítulo é **um** (0..1), nunca N. |
+| PESSOA — PROFISSIONAL | 1 : 0..1 | Mesma lógica: profissional é uma pessoa; nem toda pessoa é profissional. |
+| PROFISSIONAL — PRECEPTOR | 1 : 0..1 | Preceptor é um papel do profissional (joined). Em um dado momento o profissional **pode** não ser preceptor; se for, há no máximo um registro de preceptor. |
+| PROFISSIONAL — RESIDENTE | 1 : 0..1 | Idem para residente (`ano_residencia`). |
 
-Na regra de negócio da disciplina, a especialização é **exclusiva** (uma pessoa é
-paciente ou profissional). No SQL da Etapa 1 **não** há constraint que impeça a mesma
-`id_pessoa` nas duas subtabelas — exclusividade documentada; enforcement rígido fica
-para a Etapa 2 se necessário. A especialização é **parcial**: pode existir só em `pessoa`.
+### 3.2 Atendimento (1 : N)
 
-### PROFISSIONAL → PRECEPTOR | RESIDENTE
+O enunciado exige **exatamente um** paciente, **exatamente um** residente executor e **exatamente um** preceptor supervisor por atendimento. Por isso, do lado do atendimento a participação é **1** (obrigatória). Do outro lado:
 
-O enunciado admite histórico (residente depois preceptor), mas “em um dado momento”
-apenas um papel. Na Etapa 1 o schema **permite** linhas em ambas as tabelas para o
-mesmo profissional; a exclusão mútua é regra de negócio documentada, não enforced
-(sem triggers nesta etapa).
+| Relação | Card. | Justificativa |
+|---------|-------|---------------|
+| PACIENTE — ATENDIMENTO | 1 : N | Um paciente pode ter **vários** atendimentos ao longo do tempo; cada atendimento pertence a **um** paciente. |
+| RESIDENTE — ATENDIMENTO | 1 : N | Um residente realiza **vários** atendimentos; cada atendimento tem **um** residente. |
+| PRECEPTOR — ATENDIMENTO | 1 : N | Um preceptor supervisiona **vários** atendimentos; cada atendimento tem **um** preceptor. |
+
+### 3.3 Procedimentos em atendimento (N : N)
+
+| Relação | Card. | Justificativa |
+|---------|-------|---------------|
+| ATENDIMENTO — PROCEDIMENTO | N : N | Em um atendimento “podem ser realizados **um ou mais** procedimentos”; o mesmo tipo de procedimento (ex.: sutura) pode ocorrer em **vários** atendimentos. No DER conceitual isso é o relacionamento **realizado**, com atributos próprios (`quantidade`, `tempo_real_minutos`, `observacao`, e o acréscimo `faturado`). No MR, vira a tabela associativa `procedimento_realizado`. |
+
+### 3.4 Escalas de plantão (1 : N)
+
+| Relação | Card. | Justificativa |
+|---------|-------|---------------|
+| UNIDADE — ESCALA | 1 : N | Cada escala ocorre em **uma** unidade; uma unidade tem **várias** escalas (dias/turnos/equipes). |
+| RESIDENTE — ESCALA | 1 : N | Cada escala escala **um** residente; um residente pode ter **vários** plantões. |
+| PRECEPTOR — ESCALA | 1 : N | Cada escala tem **um** preceptor supervisor daquele plantão; o mesmo preceptor pode supervisionar **vários** plantões (em unidades/turnos distintos, conforme o enunciado). |
+
+**Regra adicional (integridade, não muda a card. 1:N):** a combinação `unidade + dia_semana + turno + residente` é **única** — o mesmo residente não fica no mesmo local/dia/turno com dois preceptores. No MR isso vira `UNIQUE` em `escala`.
+
+## 4. Justificativa da especialização
+
+Adotamos especialização **joined** (subtipos em tabelas próprias, PK = FK do supertipo), alinhada ao schema do enunciado.
+
+### 4.1 PESSOA → PACIENTE | PROFISSIONAL
+
+| Critério | Decisão | Justificativa (enunciado) |
+|----------|---------|---------------------------|
+| Total / parcial | **Parcial** | O texto diz que a pessoa “**pode** ser” paciente ou profissional — não obriga que toda pessoa já seja um dos dois. |
+| Disjunta / sobreposta | **Disjunta (exclusiva)** | “Pode ser Paciente **ou** Profissional” — no modelo conceitual, papéis mutuamente exclusivos. |
+| Implementação joined | Sim | Atributos específicos ficam só no subtipo (`num_convenio`/`alergias`/`grupo_sanguineo` vs `crm`/`data_admissao`/`especialidade`), evitando colunas nulas em `pessoa`. |
+
+### 4.2 PROFISSIONAL → PRECEPTOR | RESIDENTE
+
+| Critério | Decisão | Justificativa (enunciado) |
+|----------|---------|---------------------------|
+| Total / parcial | **Parcial** | O profissional “**pode** ser” preceptor ou residente; não há obrigatoriedade de já ter um papel cadastrado. |
+| Disjunta / sobreposta | **Disjunta no presente** | “Em um dado momento ele ocupa **apenas um** papel”. |
+| Histórico | Fora do schema da Etapa 1 | O enunciado cita que o profissional pode ter sido residente e depois preceptor em **períodos** diferentes; isso exigiria vigência temporal, que **não** é requisito da Etapa 1. Modelamos só o papel atual (disjunto). |
+| Atributos no subtipo | `titulacao` / `ano_residencia` | Só fazem sentido no papel correspondente. |
+
+### 4.3 Nota de implementação (SQL da Etapa 1)
+
+No DER/conceitual a especialização é **parcial e disjunta**. No `CREATE TABLE` da Etapa 1 (sem triggers) a exclusão mútua **não** é enforced por constraint: o banco *aceitaria* a mesma pessoa nas duas subtabelas. A disjunção fica como regra de negócio/documentação; o seed respeita um papel por profissional.
 
 ## 5. Modelo relacional
 
@@ -118,5 +150,5 @@ Não há coluna `endereco` no schema oficial; update de paciente (P2) usa convê
 
 ## 7. DER em PDF
 
-O arquivo de entrega do diagrama é [diagrama-der-hospital-residente.pdf](./diagrama-der-hospital-residente.pdf).
-As justificativas de cardinalidade, especialização e normalização estão nas seções 3–6 deste documento.
+O diagrama está em [diagrama-der-hospital-residente.pdf](./diagrama-der-hospital-residente.pdf).
+Para a entrega do req. 1, anexe ao PDF (ex.: página seguinte) as **seções 3 e 4** deste arquivo — são as justificativas de cardinalidade e especialização pedidas no enunciado.
