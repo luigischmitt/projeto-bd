@@ -10,7 +10,7 @@ O PDF já traz, nas páginas 2 e 3, as justificativas de cardinalidade e de espe
 
 Visão do DER (mesmo diagrama do PDF, em notação de Chen):
 
-![DER conceitual](images/print-der.png)
+![DER conceitual](../images/print-der.png)
 
 ## 2. Justificativas de cardinalidade
 
