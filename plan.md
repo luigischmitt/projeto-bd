@@ -4,28 +4,28 @@ overview: "Implementar a Etapa 1 do Sistema de Gestão Hospitalar Dra. Yuska: sc
 todos:
   - id: schema
     content: Criar db/01_schema.sql com todas as tabelas e constraints (PK, FK, CHECK, NOT NULL, UNIQUE), incluindo nivel_risco e faturado
-    status: pending
+    status: completed
   - id: seed
     content: Criar db/02_seed.sql com dados de teste mínimos (5 pacientes, 5 residentes, 5 preceptores, 3 unidades, 10 atendimentos, 10 procedimentos realizados)
-    status: pending
+    status: completed
   - id: backend-core
     content: "Configurar backend FastAPI: requirements.txt, .env.example, app/db.py (psycopg), app/main.py, app/schemas.py"
-    status: pending
+    status: completed
   - id: backend-crud
     content: Implementar app/crud.py com os 6 endpoints do requisito 3 (SQL puro)
-    status: pending
+    status: completed
   - id: backend-analytics
     content: Implementar app/analytics.py com as 4 consultas do requisito 4 (SQL puro)
-    status: pending
+    status: completed
   - id: frontend
     content: Criar frontend Next.js com telas de CRUD e painel analítico consumindo a API
     status: pending
   - id: readme
     content: Escrever README.md com instruções de instalação e execução (req 5)
-    status: pending
+    status: completed
   - id: consultas-ref
     content: Salvar db/consultas.sql com as consultas analíticas como referência da modelagem
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -35,7 +35,7 @@ isProject: false
 Entregar os requisitos 1-4 (+5 extra) da Etapa 1: modelagem relacional, schema PostgreSQL com constraints, dados de teste, CRUD e consultas analíticas via **SQL puro** (sem ORM), expostos por FastAPI e demonstrados em uma UI Next.js. Código conciso, profissional, mínimo de comentários.
 
 ## Stack
-- **DB:** PostgreSQL (local, sem Docker)
+- **DB:** PostgreSQL (local, sem Docker) — *Necessário instalar localmente (ex: `brew install postgresql@16` no macOS)*
 - **Backend:** FastAPI + `psycopg` (SQL puro, sem SQLAlchemy)
 - **Frontend:** Next.js (App Router) + fetch para a API
 
@@ -140,6 +140,28 @@ Páginas mínimas que exercitam a API: listar/inserir atendimento, ver procedime
 
 ## Documentação (req 5)
 `README.md` com: pré-requisitos, criar DB + rodar `db/*.sql`, configurar `.env`, subir backend (`uvicorn`) e frontend (`next dev`).
+
+### Guia rápido para o time (Miguel e Luigi) rodar o Backend:
+1. **Instalar PostgreSQL:** Se não possuir instalado (no macOS: `brew install postgresql@16 && brew services start postgresql@16`).
+2. **Criar superusuário postgres (macOS/Homebrew):** Executar no terminal `createuser -s postgres` (necessário se o postgres foi instalado via Homebrew).
+3. **Criar e popular o banco de dados:**
+   ```bash
+   createdb -U postgres hospital_yuska
+   psql -U postgres -d hospital_yuska -f db/01_schema.sql
+   psql -U postgres -d hospital_yuska -f db/02_seed.sql
+   ```
+4. **Instalar dependências do Python:**
+   ```bash
+   cd backend
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   cp .env.example .env
+   ```
+5. **Iniciar a API:**
+   ```bash
+   uvicorn app.main:app --reload
+   ```
 
 ## Fora de escopo
 Etapa 2 (procedures, triggers, views, ORM). O DER em PDF é produzido pela P1 separadamente (a modelagem/justificativas ficam documentadas, mas o PDF é entrega manual).
