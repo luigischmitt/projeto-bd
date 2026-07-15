@@ -2,6 +2,20 @@
 
 Projeto acadêmico de Banco de Dados (Etapa 1): modelagem relacional, schema PostgreSQL com SQL puro, API FastAPI (sem ORM) e interface Next.js para CRUD e relatórios analíticos.
 
+## Índice
+
+- [Integrantes](#integrantes)
+- [Stack](#stack)
+- [Estrutura do repositório](#estrutura-do-repositório)
+- [Pré-requisitos](#pré-requisitos)
+- [Instalação e execução](#instalação-e-execução)
+- [Scripts SQL](#scripts-sql)
+- [Scripts do frontend](#scripts-do-frontend)
+- [Testes da API (opcional)](#testes-da-api-opcional)
+- [Endpoints principais](#endpoints-principais)
+- [Documentação da modelagem](#documentação-da-modelagem)
+- [Licença](#licença)
+
 ## Integrantes
 
 | Nome |
