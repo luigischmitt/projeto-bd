@@ -228,10 +228,19 @@ Documentação interativa: http://localhost:8000/docs
 
 | Método | Path | Descrição |
 |--------|------|-----------|
+| `GET` | `/pacientes` | Lista pacientes cadastrados |
+| `POST` | `/pacientes` | Cadastra paciente |
+| `PUT` | `/pacientes/{id}` | Atualiza paciente |
+| `GET` | `/residentes` | Lista residentes cadastrados |
+| `POST` | `/residentes` | Cadastra residente |
+| `PUT` | `/residentes/{id}` | Atualiza residente |
+| `GET` | `/preceptores` | Lista preceptores cadastrados |
+| `POST` | `/preceptores` | Cadastra preceptor |
+| `PUT` | `/preceptores/{id}` | Atualiza preceptor |
+| `GET` | `/atendimentos` | Lista atendimentos cadastrados |
 | `POST` | `/atendimentos` | Cria atendimento |
 | `GET` | `/pacientes/{id}/atendimentos` | Atendimentos do paciente |
 | `GET` | `/atendimentos/{id}/procedimentos` | Procedimentos do atendimento |
-| `PUT` | `/pacientes/{id}` | Atualiza dados do paciente |
 | `DELETE` | `/atendimentos/{id}/procedimentos/{cod}` | Remove procedimento se não faturado |
 | `GET` | `/residentes/tempo-medio` | Tempo médio de duração por residente |
 

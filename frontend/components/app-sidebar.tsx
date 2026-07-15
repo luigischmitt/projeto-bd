@@ -4,9 +4,11 @@ import * as React from "react"
 import {
   Activity,
   CalendarPlus,
+  GraduationCap,
   Search,
   Stethoscope,
   Trash2,
+  UserCog,
   Users,
 } from "lucide-react"
 
@@ -29,6 +31,8 @@ export const atendimentosItems: NavItem[] = [
 
 export const cadastrosItems: NavItem[] = [
   { id: "pacientes", title: "Pacientes", icon: <Users /> },
+  { id: "residentes", title: "Residentes", icon: <GraduationCap /> },
+  { id: "preceptores", title: "Preceptores", icon: <UserCog /> },
   { id: "procedimentos", title: "Procedimentos", icon: <Trash2 /> },
 ]
 

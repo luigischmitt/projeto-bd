@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useState } from "react"
+import { FormEvent, useCallback, useEffect, useState } from "react"
 import {
   Activity,
   AlertCircle,
@@ -9,10 +9,21 @@ import {
   Loader2,
   Search,
   Trash2,
-  Users,
 } from "lucide-react"
 
 import { AppSidebar } from "@/components/app-sidebar"
+import {
+  PacientesSection,
+  PreceptoresSection,
+  ResidentesSection,
+  readPessoaFromForm,
+  readProfissionalFromForm,
+  toDateInput,
+  type CadastroMode,
+  type PacienteOption,
+  type PreceptorOption,
+  type ResidenteOption,
+} from "@/components/cadastro-sections"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -43,15 +54,74 @@ const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 type Row = Record<string, unknown>
 type Status = "idle" | "loading" | "success" | "error"
 
+type AtendimentoOption = {
+  id_atendimento: number
+  data_hora: string
+  duracao_minutos: number
+  id_paciente: number
+  nome_paciente: string
+}
+
+type ProcedimentoOption = {
+  codigo: string
+  nome_procedimento: string
+  quantidade: number
+  tempo_real_minutos: number
+  faturado: boolean
+}
+
 const VIEWS = {
-  novo: { group: "Atendimentos", title: "Novo atendimento", description: "Cadastre um atendimento com os IDs existentes." },
-  consultas: { group: "Atendimentos", title: "Consultas", description: "Use os IDs para listar atendimentos e procedimentos." },
-  pacientes: { group: "Cadastros", title: "Pacientes", description: "Informe o ID e os campos que devem ser alterados." },
-  procedimentos: { group: "Cadastros", title: "Procedimentos", description: "A remoção só é permitida para procedimentos ainda não faturados." },
-  relatorios: { group: "Relatórios", title: "Painel analítico", description: "Indicadores operacionais do hospital." },
+  novo: {
+    group: "Atendimentos",
+    title: "Novo atendimento",
+    description: "Selecione paciente, residente e preceptor para registrar um atendimento.",
+  },
+  consultas: {
+    group: "Atendimentos",
+    title: "Consultas",
+    description: "Consulte atendimentos, procedimentos e indicadores operacionais.",
+  },
+  pacientes: {
+    group: "Cadastros",
+    title: "Pacientes",
+    description: "Cadastre novos pacientes ou atualize dados de pacientes existentes.",
+  },
+  residentes: {
+    group: "Cadastros",
+    title: "Residentes",
+    description: "Cadastre médicos residentes ou atualize dados de residentes existentes.",
+  },
+  preceptores: {
+    group: "Cadastros",
+    title: "Preceptores",
+    description: "Cadastre preceptores ou atualize dados de preceptores existentes.",
+  },
+  procedimentos: {
+    group: "Cadastros",
+    title: "Procedimentos",
+    description: "Remova procedimentos realizados que ainda não foram faturados.",
+  },
+  relatorios: {
+    group: "Relatórios",
+    title: "Painel analítico",
+    description: "Indicadores operacionais do hospital.",
+  },
 } as const
 
 type ViewId = keyof typeof VIEWS
+
+const selectClassName =
+  "border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
 
 function StatusPill({ status, message }: { status: Status; message: string }) {
   const styles: Record<Status, string> = {
@@ -88,12 +158,22 @@ function Results({ rows }: { rows: Row[] }) {
     <div className="overflow-x-auto rounded-lg border">
       <Table>
         <TableHeader>
-          <TableRow>{columns.map((column) => <TableHead key={column} className="whitespace-nowrap">{column.replaceAll("_", " ")}</TableHead>)}</TableRow>
+          <TableRow>
+            {columns.map((column) => (
+              <TableHead key={column} className="whitespace-nowrap">
+                {column.replaceAll("_", " ")}
+              </TableHead>
+            ))}
+          </TableRow>
         </TableHeader>
         <TableBody>
           {rows.map((row, index) => (
             <TableRow key={index}>
-              {columns.map((column) => <TableCell key={column} className="whitespace-nowrap">{String(row[column] ?? "—")}</TableCell>)}
+              {columns.map((column) => (
+                <TableCell key={column} className="whitespace-nowrap">
+                  {String(row[column] ?? "—")}
+                </TableCell>
+              ))}
             </TableRow>
           ))}
         </TableBody>
@@ -107,10 +187,195 @@ export default function Home() {
   const [result, setResult] = useState<Row[]>([])
   const [status, setStatus] = useState<Status>("idle")
   const [message, setMessage] = useState("Selecione uma ação para ver os resultados.")
+  const [catalogLoading, setCatalogLoading] = useState(true)
+  const [catalogError, setCatalogError] = useState<string | null>(null)
+
+  const [pacientes, setPacientes] = useState<PacienteOption[]>([])
+  const [residentes, setResidentes] = useState<ResidenteOption[]>([])
+  const [preceptores, setPreceptores] = useState<PreceptorOption[]>([])
+  const [atendimentos, setAtendimentos] = useState<AtendimentoOption[]>([])
+  const [procedimentosAtendimento, setProcedimentosAtendimento] = useState<ProcedimentoOption[]>([])
+
   const [patientId, setPatientId] = useState("")
+  const [residenteId, setResidenteId] = useState("")
+  const [preceptorId, setPreceptorId] = useState("")
   const [attendanceId, setAttendanceId] = useState("")
   const [procedureCode, setProcedureCode] = useState("")
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7))
+
+  const [pacienteMode, setPacienteMode] = useState<CadastroMode>("novo")
+  const [residenteMode, setResidenteMode] = useState<CadastroMode>("novo")
+  const [preceptorMode, setPreceptorMode] = useState<CadastroMode>("novo")
+
+  const [pNome, setPNome] = useState("")
+  const [pCpf, setPCpf] = useState("")
+  const [pDataNascimento, setPDataNascimento] = useState("")
+  const [pTelefone, setPTelefone] = useState("")
+  const [pIsFlamengo, setPIsFlamengo] = useState(false)
+  const [convenio, setConvenio] = useState("")
+  const [alergias, setAlergias] = useState("")
+  const [grupoSanguineo, setGrupoSanguineo] = useState("")
+
+  const [rNome, setRNome] = useState("")
+  const [rCpf, setRCpf] = useState("")
+  const [rDataNascimento, setRDataNascimento] = useState("")
+  const [rTelefone, setRTelefone] = useState("")
+  const [rIsFlamengo, setRIsFlamengo] = useState(false)
+  const [rCrm, setRCrm] = useState("")
+  const [rDataAdmissao, setRDataAdmissao] = useState("")
+  const [rEspecialidade, setREspecialidade] = useState("")
+  const [rAnoResidencia, setRAnoResidencia] = useState("")
+
+  const [prNome, setPrNome] = useState("")
+  const [prCpf, setPrCpf] = useState("")
+  const [prDataNascimento, setPrDataNascimento] = useState("")
+  const [prTelefone, setPrTelefone] = useState("")
+  const [prIsFlamengo, setPrIsFlamengo] = useState(false)
+  const [prCrm, setPrCrm] = useState("")
+  const [prDataAdmissao, setPrDataAdmissao] = useState("")
+  const [prEspecialidade, setPrEspecialidade] = useState("")
+  const [prTitulacao, setPrTitulacao] = useState("")
+
+  const loadCatalog = useCallback(async () => {
+    setCatalogLoading(true)
+    setCatalogError(null)
+    try {
+      const [pacientesRes, residentesRes, preceptoresRes, atendimentosRes] = await Promise.all([
+        fetch(`${api}/pacientes`),
+        fetch(`${api}/residentes`),
+        fetch(`${api}/preceptores`),
+        fetch(`${api}/atendimentos`),
+      ])
+
+      if (!pacientesRes.ok || !residentesRes.ok || !preceptoresRes.ok || !atendimentosRes.ok) {
+        throw new Error("Não foi possível carregar os cadastros do hospital.")
+      }
+
+      setPacientes(await pacientesRes.json())
+      setResidentes(await residentesRes.json())
+      setPreceptores(await preceptoresRes.json())
+      setAtendimentos(await atendimentosRes.json())
+    } catch (error) {
+      setCatalogError(error instanceof Error ? error.message : "Erro ao carregar cadastros.")
+    } finally {
+      setCatalogLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch inicial de cadastros
+    void loadCatalog()
+  }, [loadCatalog])
+
+  function selectPatient(id: string) {
+    setPatientId(id)
+    const paciente = pacientes.find((item) => String(item.id_pessoa) === id)
+    if (paciente) {
+      setPNome(paciente.nome)
+      setPCpf(paciente.cpf)
+      setPDataNascimento(toDateInput(paciente.data_nascimento))
+      setPTelefone(paciente.telefone)
+      setPIsFlamengo(paciente.is_flamengo)
+      setConvenio(paciente.num_convenio ?? "")
+      setAlergias(paciente.alergias ?? "")
+      setGrupoSanguineo(paciente.grupo_sanguineo ?? "")
+    } else {
+      setPNome("")
+      setPCpf("")
+      setPDataNascimento("")
+      setPTelefone("")
+      setPIsFlamengo(false)
+      setConvenio("")
+      setAlergias("")
+      setGrupoSanguineo("")
+    }
+  }
+
+  function selectResidente(id: string) {
+    setResidenteId(id)
+    const residente = residentes.find((item) => String(item.id_profissional) === id)
+    if (residente) {
+      setRNome(residente.nome)
+      setRCpf(residente.cpf)
+      setRDataNascimento(toDateInput(residente.data_nascimento))
+      setRTelefone(residente.telefone)
+      setRIsFlamengo(residente.is_flamengo)
+      setRCrm(residente.crm)
+      setRDataAdmissao(toDateInput(residente.data_admissao))
+      setREspecialidade(residente.especialidade)
+      setRAnoResidencia(residente.ano_residencia)
+    } else {
+      setRNome("")
+      setRCpf("")
+      setRDataNascimento("")
+      setRTelefone("")
+      setRIsFlamengo(false)
+      setRCrm("")
+      setRDataAdmissao("")
+      setREspecialidade("")
+      setRAnoResidencia("")
+    }
+  }
+
+  function selectPreceptorCadastro(id: string) {
+    setPreceptorId(id)
+    const preceptor = preceptores.find((item) => String(item.id_profissional) === id)
+    if (preceptor) {
+      setPrNome(preceptor.nome)
+      setPrCpf(preceptor.cpf)
+      setPrDataNascimento(toDateInput(preceptor.data_nascimento))
+      setPrTelefone(preceptor.telefone)
+      setPrIsFlamengo(preceptor.is_flamengo)
+      setPrCrm(preceptor.crm)
+      setPrDataAdmissao(toDateInput(preceptor.data_admissao))
+      setPrEspecialidade(preceptor.especialidade)
+      setPrTitulacao(preceptor.titulacao)
+    } else {
+      setPrNome("")
+      setPrCpf("")
+      setPrDataNascimento("")
+      setPrTelefone("")
+      setPrIsFlamengo(false)
+      setPrCrm("")
+      setPrDataAdmissao("")
+      setPrEspecialidade("")
+      setPrTitulacao("")
+    }
+  }
+
+  async function selectAttendance(id: string) {
+    setAttendanceId(id)
+    setProcedureCode("")
+    if (!id) {
+      setProcedimentosAtendimento([])
+      return
+    }
+
+    try {
+      const response = await fetch(`${api}/atendimentos/${id}/procedimentos`)
+      if (!response.ok) throw new Error("Não foi possível carregar os procedimentos.")
+      const data: ProcedimentoOption[] = await response.json()
+      setProcedimentosAtendimento(data)
+      const firstAvailable = data.find((item) => !item.faturado)
+      setProcedureCode(firstAvailable?.codigo ?? "")
+    } catch {
+      setProcedimentosAtendimento([])
+      setProcedureCode("")
+    }
+  }
+
+  async function refreshProcedimentosAtendimento() {
+    if (!attendanceId) return
+    const response = await fetch(`${api}/atendimentos/${attendanceId}/procedimentos`)
+    if (!response.ok) return
+    const data: ProcedimentoOption[] = await response.json()
+    setProcedimentosAtendimento(data)
+    setProcedureCode("")
+  }
+
+  const atendimentosDoPaciente = patientId
+    ? atendimentos.filter((item) => String(item.id_paciente) === patientId)
+    : atendimentos
 
   async function request(path: string, options?: RequestInit) {
     setStatus("loading")
@@ -125,6 +390,12 @@ export default function Home() {
       setResult(Array.isArray(data) ? data : data ? [data] : [])
       setStatus("success")
       setMessage(response.status === 204 ? "Procedimento removido." : "Operação concluída.")
+      if (options?.method && ["POST", "PUT", "DELETE"].includes(options.method)) {
+        await loadCatalog()
+      }
+      if (path.includes("/procedimentos/") && options?.method === "DELETE" && attendanceId) {
+        await refreshProcedimentosAtendimento()
+      }
     } catch (error) {
       setResult([])
       setStatus("error")
@@ -147,20 +418,102 @@ export default function Home() {
     })
   }
 
-  function updatePatient(event: FormEvent<HTMLFormElement>) {
+  function createPatient(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
-    request(`/pacientes/${patientId}`, {
-      method: "PUT",
+    request("/pacientes", {
+      method: "POST",
       body: JSON.stringify({
+        ...readPessoaFromForm(form),
         num_convenio: form.get("num_convenio") || null,
         alergias: form.get("alergias") || null,
         grupo_sanguineo: form.get("grupo_sanguineo") || null,
       }),
     })
+    event.currentTarget.reset()
+  }
+
+  function updatePatient(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    request(`/pacientes/${patientId}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        nome: pNome,
+        cpf: pCpf,
+        data_nascimento: pDataNascimento,
+        is_flamengo: pIsFlamengo,
+        telefone: pTelefone,
+        num_convenio: convenio || null,
+        alergias: alergias || null,
+        grupo_sanguineo: grupoSanguineo || null,
+      }),
+    })
+  }
+
+  function createResidente(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    request("/residentes", {
+      method: "POST",
+      body: JSON.stringify({
+        ...readProfissionalFromForm(form),
+        ano_residencia: String(form.get("ano_residencia")),
+      }),
+    })
+    event.currentTarget.reset()
+  }
+
+  function updateResidente(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    request(`/residentes/${residenteId}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        nome: rNome,
+        cpf: rCpf,
+        data_nascimento: rDataNascimento,
+        is_flamengo: rIsFlamengo,
+        telefone: rTelefone,
+        crm: rCrm,
+        data_admissao: rDataAdmissao,
+        especialidade: rEspecialidade,
+        ano_residencia: rAnoResidencia,
+      }),
+    })
+  }
+
+  function createPreceptor(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    request("/preceptores", {
+      method: "POST",
+      body: JSON.stringify({
+        ...readProfissionalFromForm(form),
+        titulacao: String(form.get("titulacao")),
+      }),
+    })
+    event.currentTarget.reset()
+  }
+
+  function updatePreceptor(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    request(`/preceptores/${preceptorId}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        nome: prNome,
+        cpf: prCpf,
+        data_nascimento: prDataNascimento,
+        is_flamengo: prIsFlamengo,
+        telefone: prTelefone,
+        crm: prCrm,
+        data_admissao: prDataAdmissao,
+        especialidade: prEspecialidade,
+        titulacao: prTitulacao,
+      }),
+    })
   }
 
   const view_ = VIEWS[view]
+  const catalogReady = !catalogLoading && !catalogError
 
   return (
     <SidebarProvider>
@@ -178,20 +531,66 @@ export default function Home() {
         <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
           <p className="text-sm text-muted-foreground">{view_.description}</p>
 
+          {catalogLoading && (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              Carregando cadastros...
+            </p>
+          )}
+          {catalogError && (
+            <p className="text-sm text-destructive">{catalogError}</p>
+          )}
+
           {view === "novo" && (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><CalendarPlus className="size-4 text-primary" /> Novo atendimento</CardTitle>
-                <CardDescription>Cadastre um atendimento com os IDs existentes.</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarPlus className="size-4 text-primary" /> Novo atendimento
+                </CardTitle>
+                <CardDescription>
+                  Escolha quem participou do atendimento. Paciente, residente e preceptor devem estar cadastrados.
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={createAttendance} className="grid gap-4 sm:grid-cols-2">
                   <Field label="Data e hora" name="data_hora" type="datetime-local" required />
                   <Field label="Duração (minutos)" name="duracao_minutos" type="number" min="1" required />
-                  <Field label="ID do paciente" name="id_paciente" type="number" min="1" required />
-                  <Field label="ID do residente" name="id_residente" type="number" min="1" required />
-                  <Field label="ID do preceptor" name="id_preceptor" type="number" min="1" required />
-                  <Button className="mt-auto" type="submit">Cadastrar atendimento</Button>
+                  <SelectField
+                    label="Paciente"
+                    name="id_paciente"
+                    required
+                    disabled={!catalogReady}
+                    placeholder="Selecione o paciente"
+                    options={pacientes.map((item) => ({
+                      value: String(item.id_pessoa),
+                      label: `${item.nome} — convênio ${item.num_convenio ?? "N/A"}`,
+                    }))}
+                  />
+                  <SelectField
+                    label="Residente"
+                    name="id_residente"
+                    required
+                    disabled={!catalogReady}
+                    placeholder="Selecione o residente"
+                    options={residentes.map((item) => ({
+                      value: String(item.id_profissional),
+                      label: `${item.nome} (${item.ano_residencia})`,
+                    }))}
+                  />
+                  <SelectField
+                    label="Preceptor"
+                    name="id_preceptor"
+                    required
+                    disabled={!catalogReady}
+                    placeholder="Selecione o preceptor"
+                    options={preceptores.map((item) => ({
+                      value: String(item.id_profissional),
+                      label: `${item.nome} — ${item.titulacao}`,
+                    }))}
+                  />
+                  <Button className="mt-auto" type="submit" disabled={!catalogReady}>
+                    Cadastrar atendimento
+                  </Button>
                 </form>
               </CardContent>
             </Card>
@@ -200,58 +599,214 @@ export default function Home() {
           {view === "consultas" && (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Search className="size-4 text-primary" /> Consultas operacionais</CardTitle>
-                <CardDescription>Use os IDs para listar atendimentos e procedimentos.</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <Search className="size-4 text-primary" /> Consultas operacionais
+                </CardTitle>
+                <CardDescription>
+                  Liste atendimentos por paciente, procedimentos de um atendimento ou tempo médio por residente.
+                </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4">
                 <div className="flex flex-col gap-2 sm:flex-row">
-                  <Input value={patientId} onChange={(event) => setPatientId(event.target.value)} type="number" min="1" placeholder="ID do paciente" />
-                  <Button variant="outline" onClick={() => request(`/pacientes/${patientId}/atendimentos`)} disabled={!patientId}>Ver atendimentos</Button>
+                  <SelectField
+                    label="Paciente"
+                    value={patientId}
+                    onChange={selectPatient}
+                    disabled={!catalogReady}
+                    placeholder="Selecione o paciente"
+                    options={pacientes.map((item) => ({
+                      value: String(item.id_pessoa),
+                      label: item.nome,
+                    }))}
+                  />
+                  <Button
+                    variant="outline"
+                    className="sm:mt-auto"
+                    onClick={() => request(`/pacientes/${patientId}/atendimentos`)}
+                    disabled={!patientId}
+                  >
+                    Ver atendimentos
+                  </Button>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row">
-                  <Input value={attendanceId} onChange={(event) => setAttendanceId(event.target.value)} type="number" min="1" placeholder="ID do atendimento" />
-                  <Button variant="outline" onClick={() => request(`/atendimentos/${attendanceId}/procedimentos`)} disabled={!attendanceId}>Ver procedimentos</Button>
+                  <SelectField
+                    label="Atendimento"
+                    value={attendanceId}
+                    onChange={selectAttendance}
+                    disabled={!catalogReady}
+                    placeholder="Selecione o atendimento"
+                    options={(patientId ? atendimentosDoPaciente : atendimentos).map((item) => ({
+                      value: String(item.id_atendimento),
+                      label: `#${item.id_atendimento} — ${item.nome_paciente} — ${formatDateTime(item.data_hora)}`,
+                    }))}
+                  />
+                  <Button
+                    variant="outline"
+                    className="sm:mt-auto"
+                    onClick={() => request(`/atendimentos/${attendanceId}/procedimentos`)}
+                    disabled={!attendanceId}
+                  >
+                    Ver procedimentos
+                  </Button>
                 </div>
                 <Separator />
-                <Button variant="outline" onClick={() => request("/residentes/tempo-medio")}>Tempo médio por residente</Button>
+                <Button variant="outline" onClick={() => request("/residentes/tempo-medio")}>
+                  Tempo médio por residente
+                </Button>
               </CardContent>
             </Card>
           )}
 
           {view === "pacientes" && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Users className="size-4 text-primary" /> Atualizar paciente</CardTitle>
-                <CardDescription>Informe o ID e os campos que devem ser alterados.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={updatePatient} className="grid gap-4 sm:grid-cols-2">
-                  <Field label="ID do paciente" value={patientId} onChange={setPatientId} type="number" required />
-                  <Field label="Número do convênio" name="num_convenio" />
-                  <Field label="Alergias" name="alergias" />
-                  <Field label="Grupo sanguíneo" name="grupo_sanguineo" placeholder="Ex.: O+" />
-                  <Button type="submit">Salvar alterações</Button>
-                </form>
-              </CardContent>
-            </Card>
+            <PacientesSection
+              mode={pacienteMode}
+              onModeChange={setPacienteMode}
+              catalogReady={catalogReady}
+              pacientes={pacientes}
+              patientId={patientId}
+              onSelectPatient={selectPatient}
+              form={{
+                nome: pNome,
+                cpf: pCpf,
+                dataNascimento: pDataNascimento,
+                telefone: pTelefone,
+                isFlamengo: pIsFlamengo,
+                convenio,
+                alergias,
+                grupoSanguineo,
+                setNome: setPNome,
+                setCpf: setPCpf,
+                setDataNascimento: setPDataNascimento,
+                setTelefone: setPTelefone,
+                setIsFlamengo: setPIsFlamengo,
+                setConvenio,
+                setAlergias,
+                setGrupoSanguineo,
+              }}
+              onCreate={createPatient}
+              onUpdate={updatePatient}
+            />
+          )}
+
+          {view === "residentes" && (
+            <ResidentesSection
+              mode={residenteMode}
+              onModeChange={setResidenteMode}
+              catalogReady={catalogReady}
+              residentes={residentes}
+              residenteId={residenteId}
+              onSelectResidente={selectResidente}
+              form={{
+                nome: rNome,
+                cpf: rCpf,
+                dataNascimento: rDataNascimento,
+                telefone: rTelefone,
+                isFlamengo: rIsFlamengo,
+                crm: rCrm,
+                dataAdmissao: rDataAdmissao,
+                especialidade: rEspecialidade,
+                anoResidencia: rAnoResidencia,
+                setNome: setRNome,
+                setCpf: setRCpf,
+                setDataNascimento: setRDataNascimento,
+                setTelefone: setRTelefone,
+                setIsFlamengo: setRIsFlamengo,
+                setCrm: setRCrm,
+                setDataAdmissao: setRDataAdmissao,
+                setEspecialidade: setREspecialidade,
+                setAnoResidencia: setRAnoResidencia,
+              }}
+              onCreate={createResidente}
+              onUpdate={updateResidente}
+            />
+          )}
+
+          {view === "preceptores" && (
+            <PreceptoresSection
+              mode={preceptorMode}
+              onModeChange={setPreceptorMode}
+              catalogReady={catalogReady}
+              preceptores={preceptores}
+              preceptorId={preceptorId}
+              onSelectPreceptor={selectPreceptorCadastro}
+              form={{
+                nome: prNome,
+                cpf: prCpf,
+                dataNascimento: prDataNascimento,
+                telefone: prTelefone,
+                isFlamengo: prIsFlamengo,
+                crm: prCrm,
+                dataAdmissao: prDataAdmissao,
+                especialidade: prEspecialidade,
+                titulacao: prTitulacao,
+                setNome: setPrNome,
+                setCpf: setPrCpf,
+                setDataNascimento: setPrDataNascimento,
+                setTelefone: setPrTelefone,
+                setIsFlamengo: setPrIsFlamengo,
+                setCrm: setPrCrm,
+                setDataAdmissao: setPrDataAdmissao,
+                setEspecialidade: setPrEspecialidade,
+                setTitulacao: setPrTitulacao,
+              }}
+              onCreate={createPreceptor}
+              onUpdate={updatePreceptor}
+            />
           )}
 
           {view === "procedimentos" && (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Trash2 className="size-4 text-destructive" /> Remover procedimento</CardTitle>
-                <CardDescription>A remoção só é permitida para procedimentos ainda não faturados.</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <Trash2 className="size-4 text-destructive" /> Remover procedimento
+                </CardTitle>
+                <CardDescription>
+                  Procedimentos já faturados não podem ser removidos.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-col gap-3 sm:flex-row">
-                <Input value={attendanceId} onChange={(event) => setAttendanceId(event.target.value)} type="number" min="1" placeholder="ID do atendimento" />
-                <Input value={procedureCode} onChange={(event) => setProcedureCode(event.target.value)} placeholder="Código do procedimento" />
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <SelectField
+                  label="Atendimento"
+                  value={attendanceId}
+                  onChange={selectAttendance}
+                  disabled={!catalogReady}
+                  placeholder="Selecione o atendimento"
+                  options={atendimentos.map((item) => ({
+                    value: String(item.id_atendimento),
+                    label: `#${item.id_atendimento} — ${item.nome_paciente} — ${formatDateTime(item.data_hora)}`,
+                  }))}
+                />
+                <SelectField
+                  label="Procedimento"
+                  value={procedureCode}
+                  onChange={setProcedureCode}
+                  disabled={!attendanceId || procedimentosAtendimento.length === 0}
+                  placeholder={
+                    attendanceId
+                      ? procedimentosAtendimento.length
+                        ? "Selecione o procedimento"
+                        : "Nenhum procedimento neste atendimento"
+                      : "Selecione um atendimento primeiro"
+                  }
+                  options={procedimentosAtendimento.map((item) => ({
+                    value: item.codigo,
+                    label: item.faturado
+                      ? `${item.codigo} — ${item.nome_procedimento} (faturado)`
+                      : `${item.codigo} — ${item.nome_procedimento}`,
+                    disabled: item.faturado,
+                  }))}
+                />
                 <Button
                   variant="destructive"
-                  className="sm:w-auto"
+                  className="sm:col-span-2 sm:w-fit"
                   disabled={!attendanceId || !procedureCode}
-                  onClick={() => request(`/atendimentos/${attendanceId}/procedimentos/${procedureCode}`, { method: "DELETE" })}
+                  onClick={() =>
+                    request(`/atendimentos/${attendanceId}/procedimentos/${procedureCode}`, {
+                      method: "DELETE",
+                    })
+                  }
                 >
-                  Remover
+                  Remover procedimento
                 </Button>
               </CardContent>
             </Card>
@@ -260,19 +815,51 @@ export default function Home() {
           {view === "relatorios" && (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Activity className="size-4 text-primary" /> Painel analítico</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="size-4 text-primary" /> Painel analítico
+                </CardTitle>
                 <CardDescription>Indicadores operacionais do hospital.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Button variant="outline" className="h-auto min-h-16 justify-start text-left" onClick={() => request("/analytics/ranking-residentes")}>Ranking de residentes</Button>
-                  <Button variant="outline" className="h-auto min-h-16 justify-start text-left" onClick={() => request("/analytics/plantoes-por-unidade")}>Plantões por unidade</Button>
-                  <Button variant="outline" className="h-auto min-h-16 justify-start text-left" onClick={() => request("/analytics/pacientes-sem-risco-alto")}>Pacientes sem risco alto</Button>
-                  <Button variant="outline" className="h-auto min-h-16 justify-start text-left" onClick={() => request(`/analytics/preceptores-supervisao?mes=${month}`)}>Supervisões em {month}</Button>
+                  <Button
+                    variant="outline"
+                    className="h-auto min-h-16 justify-start text-left"
+                    onClick={() => request("/analytics/ranking-residentes")}
+                  >
+                    Ranking de residentes
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-auto min-h-16 justify-start text-left"
+                    onClick={() => request("/analytics/plantoes-por-unidade")}
+                  >
+                    Plantões por unidade
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-auto min-h-16 justify-start text-left"
+                    onClick={() => request("/analytics/pacientes-sem-risco-alto")}
+                  >
+                    Pacientes sem risco alto
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-auto min-h-16 justify-start text-left"
+                    onClick={() => request(`/analytics/preceptores-supervisao?mes=${month}`)}
+                  >
+                    Supervisões em {month}
+                  </Button>
                 </div>
                 <div className="max-w-xs">
                   <Label htmlFor="month">Mês das supervisões</Label>
-                  <Input id="month" value={month} onChange={(event) => setMonth(event.target.value)} type="month" className="mt-2" />
+                  <Input
+                    id="month"
+                    value={month}
+                    onChange={(event) => setMonth(event.target.value)}
+                    type="month"
+                    className="mt-2"
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -309,7 +896,56 @@ function Field({
   return (
     <div className="grid gap-2">
       <Label htmlFor={id}>{label}</Label>
-      <Input id={id} name={name} value={value} onChange={(event) => onChange?.(event.target.value)} {...props} />
+      <Input
+        id={id}
+        name={name}
+        value={value}
+        onChange={(event) => onChange?.(event.target.value)}
+        {...props}
+      />
+    </div>
+  )
+}
+
+function SelectField({
+  label,
+  name,
+  value,
+  onChange,
+  options,
+  placeholder,
+  required,
+  disabled,
+}: {
+  label: string
+  name?: string
+  value?: string
+  onChange?: (value: string) => void
+  options: { value: string; label: string; disabled?: boolean }[]
+  placeholder?: string
+  required?: boolean
+  disabled?: boolean
+}) {
+  const id = name ?? label.toLowerCase().replaceAll(" ", "-")
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <select
+        id={id}
+        name={name}
+        {...(value !== undefined ? { value } : {})}
+        required={required}
+        disabled={disabled}
+        onChange={(event) => onChange?.(event.target.value)}
+        className={selectClassName}
+      >
+        <option value="">{placeholder ?? "Selecione..."}</option>
+        {options.map((option) => (
+          <option key={option.value} value={option.value} disabled={option.disabled}>
+            {option.label}
+          </option>
+        ))}
+      </select>
     </div>
   )
 }

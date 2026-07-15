@@ -75,6 +75,36 @@ def test_analytics_pacientes_sem_risco_alto(client):
 
 # --- TESTES DE CRUD (REQUISITO 3) ---
 
+def test_list_pacientes(client):
+    response = client.get("/pacientes")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) >= 5
+    assert "nome" in data[0]
+    assert "id_pessoa" in data[0]
+
+def test_list_residentes(client):
+    response = client.get("/residentes")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) >= 5
+    assert "ano_residencia" in data[0]
+
+def test_list_preceptores(client):
+    response = client.get("/preceptores")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) >= 5
+    assert "titulacao" in data[0]
+
+def test_list_atendimentos(client):
+    response = client.get("/atendimentos")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) >= 10
+    assert "nome_paciente" in data[0]
+    assert "id_paciente" in data[0]
+
 def test_get_paciente_atendimentos(client):
     # Paciente Carlos (id=1)
     response = client.get("/pacientes/1/atendimentos")
@@ -95,7 +125,9 @@ def test_get_atendimento_procedimentos(client):
     assert response.status_code == 200
     data = response.json()
     assert len(data) > 0
+    assert "codigo" in data[0]
     assert "nome_procedimento" in data[0]
+    assert "faturado" in data[0]
     assert "quantidade" in data[0]
 
     # Atendimento inexistente
@@ -103,8 +135,12 @@ def test_get_atendimento_procedimentos(client):
     assert response.status_code == 404
 
 def test_update_paciente(client):
-    # Atualiza paciente 1
     update_payload = {
+        "nome": "Carlos Paciente",
+        "cpf": "11111111111",
+        "data_nascimento": "1990-01-10",
+        "is_flamengo": True,
+        "telefone": "83990000001",
         "num_convenio": "TEST-CONV-NEW",
         "alergias": "Nenhuma conhecida",
         "grupo_sanguineo": "O-"
@@ -115,10 +151,66 @@ def test_update_paciente(client):
     assert data["num_convenio"] == "TEST-CONV-NEW"
     assert data["alergias"] == "Nenhuma conhecida"
     assert data["grupo_sanguineo"] == "O-"
+    assert data["nome"] == "Carlos Paciente"
 
-    # Paciente inexistente
     response = client.put("/pacientes/999", json=update_payload)
     assert response.status_code == 404
+
+
+def test_create_paciente(client):
+    payload = {
+        "nome": "Novo Paciente Teste",
+        "cpf": "99988877766",
+        "data_nascimento": "1995-05-20",
+        "is_flamengo": False,
+        "telefone": "83991112222",
+        "num_convenio": "CONV-TEST",
+        "alergias": "Nenhuma",
+        "grupo_sanguineo": "A+"
+    }
+    response = client.post("/pacientes", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+    assert data["nome"] == "Novo Paciente Teste"
+    assert data["id_pessoa"] is not None
+
+
+def test_create_residente(client):
+    payload = {
+        "nome": "Residente Teste",
+        "cpf": "88877766655",
+        "data_nascimento": "1998-03-10",
+        "is_flamengo": True,
+        "telefone": "83992223333",
+        "crm": "CRM-PB-9999",
+        "data_admissao": "2025-01-01",
+        "especialidade": "Clinica Medica",
+        "ano_residencia": "R1"
+    }
+    response = client.post("/residentes", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+    assert data["nome"] == "Residente Teste"
+    assert data["ano_residencia"] == "R1"
+
+
+def test_create_preceptor(client):
+    payload = {
+        "nome": "Preceptor Teste",
+        "cpf": "77766655544",
+        "data_nascimento": "1975-08-15",
+        "is_flamengo": False,
+        "telefone": "83993334444",
+        "crm": "CRM-PB-8888",
+        "data_admissao": "2010-06-01",
+        "especialidade": "Pediatria",
+        "titulacao": "Doutor"
+    }
+    response = client.post("/preceptores", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+    assert data["nome"] == "Preceptor Teste"
+    assert data["titulacao"] == "Doutor"
 
 def test_delete_procedimento_realizado_validation(client):
     # Tenta remover procedimento faturado = TRUE (PROC-03 no atendimento 1) -> deve dar 400
