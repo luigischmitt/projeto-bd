@@ -92,8 +92,8 @@ async def get_paciente_atendimentos(id: int, conn: Connection = Depends(get_db))
             SELECT a.id_atendimento, a.data_hora, a.duracao_minutos, a.id_residente, a.id_preceptor,
                    p_res.nome AS nome_residente, p_prec.nome AS nome_preceptor
             FROM atendimento a
-            JOIN pessoa p_res ON p_res.id_pessoa = a.id_residente
-            JOIN pessoa p_prec ON p_prec.id_pessoa = a.id_preceptor
+            LEFT JOIN pessoa p_res ON p_res.id_pessoa = a.id_residente
+            LEFT JOIN pessoa p_prec ON p_prec.id_pessoa = a.id_preceptor
             WHERE a.id_paciente = %s
             ORDER BY a.data_hora ASC
             """,
