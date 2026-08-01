@@ -1,0 +1,3 @@
+-- Stored procedures da Etapa 2 (requisito 1)
+-- Preenchido na issue #4. O arquivo já existe e é montado no docker-entrypoint-initdb.d
+-- para fixar a ordem de carga: schema → procedures → triggers → views → seed.

@@ -1,0 +1,3 @@
+-- Triggers da Etapa 2 (requisito 2)
+-- Preenchido na issue #5. Carregado antes do seed de propósito: assim o banco sobe com
+-- procedimento.media_tempo_procedimento já calculada e com linhas em auditoria_atendimento.

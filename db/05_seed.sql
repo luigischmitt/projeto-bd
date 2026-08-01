@@ -1,5 +1,5 @@
--- Seed Etapa 1 — mínimos do enunciado + cenários das consultas analíticas
--- Requer: db/01_schema.sql já aplicado
+-- Seed — mínimos do enunciado + cenários das consultas analíticas
+-- Requer: 01_schema, 02_procedures, 03_triggers e 04_views já aplicados (roda por último)
 -- Cenário consulta 2: preceptor id=6 (Ana Preceptora) com >5 atendimentos em 2026-06
 -- Cenário consulta 4: paciente id=5 (Pedro SemRiscoAlto) sem procedimento ALTO
 
@@ -42,12 +42,14 @@ INSERT INTO profissional (id_pessoa, crm, data_admissao, especialidade) VALUES
 (14, 'CRM-PB-2004', '2025-02-01', 'Cardiologia'),
 (15, 'CRM-PB-2005', '2023-08-01', 'Ortopedia');
 
+-- Titulações no domínio fechado do CHECK; os quatro valores aparecem para exercitar
+-- vw_residentes_sem_supervisor (residente é "sem supervisor" quando o preceptor não é DOUTOR).
 INSERT INTO preceptor (id_profissional, titulacao) VALUES
-(6, 'Doutor'),
-(7, 'Mestre'),
-(8, 'Doutor'),
-(9, 'Especialista'),
-(10, 'Mestre');
+(6, 'DOUTOR'),
+(7, 'MESTRE'),
+(8, 'POS_DOUTOR'),
+(9, 'ESPECIALISTA'),
+(10, 'MESTRE');
 
 INSERT INTO residente (id_profissional, ano_residencia) VALUES
 (11, 'R1'),
@@ -73,32 +75,37 @@ INSERT INTO procedimento (id_procedimento, codigo, nome, tempo_medio_minutos, ni
 SELECT setval('procedimento_id_procedimento_seq', 5);
 
 -- 10 atendimentos: 6 em 2026-06 para Ana (id_preceptor=6) superar 5 supervisões
-INSERT INTO atendimento (id_atendimento, data_hora, duracao_minutos, id_paciente, id_residente, id_preceptor) VALUES
-(1,  '2026-06-02 08:00:00', 40, 1, 11, 6),
-(2,  '2026-06-03 09:00:00', 35, 2, 11, 6),
-(3,  '2026-06-04 10:00:00', 50, 3, 12, 6),
-(4,  '2026-06-05 11:00:00', 45, 4, 12, 6),
-(5,  '2026-06-06 14:00:00', 60, 1, 13, 6),
-(6,  '2026-06-07 15:00:00', 30, 2, 13, 6),
-(7,  '2026-06-10 08:30:00', 55, 3, 14, 7),
-(8,  '2026-05-12 09:30:00', 40, 4, 15, 8),
-(9,  '2026-05-15 10:30:00', 25, 5, 11, 9),
-(10, '2026-05-20 16:00:00', 70, 5, 12, 10);
+-- A unidade acompanha a escala do residente, e os dois meses cobrem unidades diferentes
+-- para vw_estatisticas_atendimentos_mensal.
+INSERT INTO atendimento (id_atendimento, data_hora, duracao_minutos, id_paciente, id_residente, id_preceptor, id_unidade) VALUES
+(1,  '2026-06-02 08:00:00', 40, 1, 11, 6,  1),
+(2,  '2026-06-03 09:00:00', 35, 2, 11, 6,  1),
+(3,  '2026-06-04 10:00:00', 50, 3, 12, 6,  1),
+(4,  '2026-06-05 11:00:00', 45, 4, 12, 6,  1),
+(5,  '2026-06-06 14:00:00', 60, 1, 13, 6,  2),
+(6,  '2026-06-07 15:00:00', 30, 2, 13, 6,  2),
+(7,  '2026-06-10 08:30:00', 55, 3, 14, 7,  2),
+(8,  '2026-05-12 09:30:00', 40, 4, 15, 8,  3),
+(9,  '2026-05-15 10:30:00', 25, 5, 11, 9,  3),
+(10, '2026-05-20 16:00:00', 70, 5, 12, 10, 1);
 
 SELECT setval('atendimento_id_atendimento_seq', 10);
 
 -- 10 procedimentos realizados; paciente 5 só BAIXO/MEDIO; mistura faturado
-INSERT INTO procedimento_realizado (id_atendimento, id_procedimento, quantidade, tempo_real_minutos, observacao, faturado) VALUES
-(1,  1, 1, 12, NULL, FALSE),
-(1,  3, 1, 28, 'Sem intercorrencia', TRUE),
-(2,  2, 2, 18, NULL, FALSE),
-(3,  4, 1, 50, 'Paciente ansioso', FALSE),
-(4,  5, 1, 22, NULL, TRUE),
-(5,  1, 1, 11, NULL, FALSE),
-(6,  3, 1, 35, NULL, FALSE),
-(7,  4, 1, 48, NULL, FALSE),
-(9,  1, 1, 10, 'Paciente 5 - so baixo', FALSE),
-(10, 3, 1, 32, 'Paciente 5 - medio', FALSE);
+-- data_hora_inicio sempre posterior ao data_hora do atendimento: a diferença é a espera
+-- medida por sp_calcular_tempo_medio_espera. O atendimento 8 fica sem procedimento de
+-- propósito, para exercitar a exclusão do cálculo.
+INSERT INTO procedimento_realizado (id_atendimento, id_procedimento, quantidade, tempo_real_minutos, data_hora_inicio, observacao, faturado) VALUES
+(1,  1, 1, 12, '2026-06-02 08:15:00', NULL, FALSE),
+(1,  3, 1, 28, '2026-06-02 08:30:00', 'Sem intercorrencia', TRUE),
+(2,  2, 2, 18, '2026-06-03 09:20:00', NULL, FALSE),
+(3,  4, 1, 50, '2026-06-04 10:25:00', 'Paciente ansioso', FALSE),
+(4,  5, 1, 22, '2026-06-05 11:10:00', NULL, TRUE),
+(5,  1, 1, 11, '2026-06-06 14:30:00', NULL, FALSE),
+(6,  3, 1, 35, '2026-06-07 15:05:00', NULL, FALSE),
+(7,  4, 1, 48, '2026-06-10 08:50:00', NULL, FALSE),
+(9,  1, 1, 10, '2026-05-15 10:45:00', 'Paciente 5 - so baixo', FALSE),
+(10, 3, 1, 32, '2026-05-20 16:20:00', 'Paciente 5 - medio', FALSE);
 
 -- Escalas atuais (consulta 3: plantões por unidade/residente; sem data de calendário na tabela)
 INSERT INTO escala (id_escala, id_unidade, dia_semana, turno, id_residente, id_preceptor) VALUES
@@ -111,3 +118,16 @@ INSERT INTO escala (id_escala, id_unidade, dia_semana, turno, id_residente, id_p
 (7, 3, 'SEX', 'NOITE', 11, 6);
 
 SELECT setval('escala_id_escala_seq', 7);
+
+-- Internações: 3 em curso (sem alta) e 3 encerradas, base de vw_pacientes_internados.
+-- O paciente 1 tem uma internação encerrada e outra em curso; o paciente 5 só tem
+-- internação encerrada, então não deve aparecer na view.
+INSERT INTO internacao (id_internacao, id_paciente, id_unidade, data_hora_entrada, data_hora_saida) VALUES
+(1, 1, 1, '2026-06-02 09:00:00', '2026-06-05 10:00:00'),
+(2, 2, 2, '2026-06-03 10:00:00', NULL),
+(3, 3, 1, '2026-06-04 11:00:00', NULL),
+(4, 4, 3, '2026-05-12 10:00:00', '2026-05-14 08:00:00'),
+(5, 5, 1, '2026-05-15 11:00:00', '2026-05-16 12:00:00'),
+(6, 1, 2, '2026-06-20 07:00:00', NULL);
+
+SELECT setval('internacao_id_internacao_seq', 6);
