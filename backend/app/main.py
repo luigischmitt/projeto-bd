@@ -1,9 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db import lifespan_db
-from app.crud import router as crud_router
-from app.analytics import router as analytics_router
+from app.core.database import lifespan_db
+from app.api.router import router as api_router
 
 app = FastAPI(
     title="Sistema de Gestão Hospitalar Dra. Yuska - API",
@@ -12,18 +11,15 @@ app = FastAPI(
     lifespan=lifespan_db
 )
 
-# Configuração de CORS para permitir conexões do frontend Next.js
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permite todas as origens em desenvolvimento
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Registro das rotas
-app.include_router(crud_router, tags=["CRUD"])
-app.include_router(analytics_router, tags=["Analytics"])
+app.include_router(api_router)
 
 @app.get("/", tags=["Root"])
 async def root():

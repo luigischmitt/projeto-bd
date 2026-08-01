@@ -38,21 +38,48 @@ Projeto acadêmico de Banco de Dados (Etapa 1): modelagem relacional, schema Pos
 ```
 projeto-bd/
 ├── db/
-│   ├── 01_schema.sql      # CREATE TABLE e constraints
-│   ├── 02_seed.sql        # dados de teste
-│   └── consultas.sql      # 4 consultas analíticas (referência)
+│   ├── 01_schema.sql       # CREATE TABLE e constraints
+│   ├── 02_seed.sql         # dados de teste
+│   └── consultas.sql       # 4 consultas analíticas (referência)
 ├── backend/
 │   ├── requirements.txt
+│   ├── pytest.ini
 │   ├── .env.example
-│   └── app/               # API FastAPI
-├── frontend/              # UI Next.js
+│   ├── app/
+│   │   ├── main.py         # app FastAPI, CORS, registro de rotas
+│   │   ├── config.py       # variáveis de ambiente (DATABASE_URL)
+│   │   ├── api/            # camada HTTP (routers por domínio)
+│   │   ├── core/           # infraestrutura (pool de conexões)
+│   │   ├── schemas/        # modelos Pydantic (request/response)
+│   │   └── repositories/   # acesso a dados (SQL puro)
+│   └── tests/              # testes de integração da API
+├── frontend/               # UI Next.js
 ├── docs/
-│   ├── modelagem.md       # DER, cardinalidades, 3FN, modelo relacional
-│   └── diagrama-der.pdf
-├── images/
-│   └── print-der.png
+│   ├── modelagem.md        # DER, cardinalidades, 3FN, modelo relacional
+│   ├── diagrama-der.pdf    # diagrama entidade-relacionamento
+│   └── print-der.png       # visão rápida do DER
 └── docker-compose.yaml
 ```
+
+### Backend — organização em camadas
+
+| Pasta | Responsabilidade |
+|-------|------------------|
+| `app/api/` | Rotas HTTP: validação de entrada, status codes, chamada aos repositories |
+| `app/schemas/` | Contratos da API (Pydantic): create, update, list, response |
+| `app/repositories/` | Queries SQL com psycopg — sem lógica HTTP |
+| `app/core/` | Pool assíncrono PostgreSQL e dependency `get_db` |
+| `app/config.py` | Settings via pydantic-settings |
+
+Routers em `app/api/`:
+
+| Arquivo | Prefixo | Domínio |
+|---------|---------|---------|
+| `pacientes.py` | `/pacientes` | CRUD de pacientes + atendimentos do paciente |
+| `residentes.py` | `/residentes` | CRUD de residentes + tempo médio |
+| `preceptores.py` | `/preceptores` | CRUD de preceptores |
+| `atendimentos.py` | `/atendimentos` | CRUD de atendimentos + procedimentos |
+| `analytics.py` | `/analytics` | Relatórios analíticos |
 
 ## Pré-requisitos
 
@@ -122,16 +149,8 @@ Instale as dependências e configure o `.env`:
 
 ```bash
 pip install -r requirements.txt
-```
-
-```powershell
-# Windows
-copy .env.example .env
-```
-
-```bash
-# Linux / macOS
-cp .env.example .env
+cp .env.example .env   # Linux / macOS
+# copy .env.example .env   # Windows
 ```
 
 Conteúdo esperado do `.env`:
@@ -165,15 +184,15 @@ A interface fica em http://localhost:3000.
 
 Por padrão a UI chama a API em `http://localhost:8000`. Para apontar para outro host:
 
+```bash
+# Linux / macOS
+NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
+```
+
 ```powershell
 # Windows (PowerShell)
 $env:NEXT_PUBLIC_API_URL="http://localhost:8000"
 npm run dev
-```
-
-```bash
-# Linux / macOS
-NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
 ```
 
 ## Scripts SQL
@@ -194,9 +213,9 @@ As mesmas consultas também estão expostas na API em `/analytics/*` e no painel
 
 ### Consultas em `consultas.sql`
 
-1. Ranking de residentes por número de atendimentos  
-2. Preceptores com mais de 5 supervisões em um mês (exemplo: junho/2026)  
-3. Quantidade de plantões por unidade e residente  
+1. Ranking de residentes por número de atendimentos
+2. Preceptores com mais de 5 supervisões em um mês (exemplo: junho/2026)
+3. Quantidade de plantões por unidade e residente
 4. Pacientes que nunca realizaram procedimento de risco `ALTO`
 
 ## Scripts do frontend
@@ -215,10 +234,10 @@ Com o banco acessível e o venv do backend ativo:
 ```bash
 cd backend
 pip install pytest
-pytest app/tests/test_api.py
+pytest
 ```
 
-Os testes de integração são ignorados se o PostgreSQL não estiver disponível.
+Os testes de integração em `backend/tests/` são ignorados automaticamente se o PostgreSQL não estiver disponível no `DATABASE_URL`.
 
 ## Endpoints principais
 
@@ -255,9 +274,13 @@ Documentação interativa: http://localhost:8000/docs
 
 ## Documentação da modelagem
 
-- [docs/modelagem.md](docs/modelagem.md) — DER, cardinalidades, especialização, 3FN e modelo relacional  
-- [docs/diagrama-der.pdf](docs/diagrama-der.pdf) — diagrama entidade-relacionamento  
-- [images/print-der.png](images/print-der.png) — visão rápida do DER  
+Tudo em [`docs/`](docs/):
+
+| Arquivo | Conteúdo |
+|---------|----------|
+| [modelagem.md](docs/modelagem.md) | DER, cardinalidades, especialização, 3FN e modelo relacional |
+| [diagrama-der.pdf](docs/diagrama-der.pdf) | Diagrama entidade-relacionamento (PDF) |
+| [print-der.png](docs/print-der.png) | Visão rápida do DER (PNG) |
 
 ## Licença
 
