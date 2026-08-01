@@ -4,13 +4,13 @@
 
 DER conceitual completo (entidades, atributos, relacionamentos e cardinalidades):
 
-[diagrama-der-hospital-residente.pdf](./diagrama-der-hospital-residente.pdf)
+[diagrama-der.pdf](./diagrama-der.pdf)
 
 O PDF já traz, nas páginas 2 e 3, as justificativas de cardinalidade e de especialização — as seções 2 e 3 abaixo são o mesmo conteúdo em texto, para consulta rápida.
 
 Visão do DER (mesmo diagrama do PDF, em notação de Chen):
 
-![DER conceitual](../images/print-der.png)
+![DER conceitual](./print-der.png)
 
 ## 2. Justificativas de cardinalidade
 
