@@ -69,6 +69,15 @@ def test_list_preceptores(client):
     assert "titulacao" in data[0]
 
 
+def test_list_unidades(client):
+    response = client.get("/unidades")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) >= 3
+    assert "id_unidade" in data[0]
+    assert any(item["nome"] == "UTI Central" for item in data)
+
+
 def test_list_atendimentos(client):
     response = client.get("/atendimentos")
     assert response.status_code == 200
@@ -76,6 +85,7 @@ def test_list_atendimentos(client):
     assert len(data) >= 10
     assert "nome_paciente" in data[0]
     assert "id_paciente" in data[0]
+    assert "nome_unidade" in data[0]
 
 
 def test_get_paciente_atendimentos(client):
@@ -84,6 +94,7 @@ def test_get_paciente_atendimentos(client):
     data = response.json()
     assert len(data) > 0
     assert [item["data_hora"] for item in data] == sorted(item["data_hora"] for item in data)
+    assert all(item["nome_unidade"] for item in data)
 
     response = client.get("/pacientes/999/atendimentos")
     assert response.status_code == 404
@@ -173,13 +184,17 @@ def test_create_preceptor(client):
         "crm": "CRM-PB-8888",
         "data_admissao": "2010-06-01",
         "especialidade": "Pediatria",
-        "titulacao": "Doutor",
+        "titulacao": "DOUTOR",
     }
     response = client.post("/preceptores", json=payload)
     assert response.status_code == 201
     data = response.json()
     assert data["nome"] == "Preceptor Teste"
-    assert data["titulacao"] == "Doutor"
+    assert data["titulacao"] == "DOUTOR"
+
+    payload |= {"cpf": "77766655533", "crm": "CRM-PB-8887", "titulacao": "Doutor"}
+    response = client.post("/preceptores", json=payload)
+    assert response.status_code == 422
 
 
 def test_delete_procedimento_realizado_validation(client):
@@ -201,10 +216,17 @@ def test_create_atendimento_validation(client):
         "id_paciente": 1,
         "id_residente": 11,
         "id_preceptor": 6,
+        "id_unidade": 1,
     }
     response = client.post("/atendimentos", json=payload)
     assert response.status_code == 201
-    assert response.json()["id_atendimento"] is not None
+    body = response.json()
+    assert body["id_atendimento"] is not None
+    assert body["id_unidade"] == 1
+
+    response = client.post("/atendimentos", json=payload | {"id_unidade": 999})
+    assert response.status_code == 400
+    assert "Unidade com id_unidade 999 não existe" in response.json()["detail"]
 
     payload["id_paciente"] = 999
     response = client.post("/atendimentos", json=payload)

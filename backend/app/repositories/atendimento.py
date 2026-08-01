@@ -9,9 +9,11 @@ async def list_all(conn: Connection) -> list[dict]:
     async with conn.cursor(row_factory=dict_row) as cur:
         await cur.execute(
             """
-            SELECT a.id_atendimento, a.data_hora, a.duracao_minutos, a.id_paciente, p.nome AS nome_paciente
+            SELECT a.id_atendimento, a.data_hora, a.duracao_minutos, a.id_paciente, p.nome AS nome_paciente,
+                   a.id_unidade, u.nome AS nome_unidade
             FROM atendimento a
             JOIN pessoa p ON p.id_pessoa = a.id_paciente
+            JOIN unidade u ON u.id_unidade = a.id_unidade
             ORDER BY a.data_hora DESC
             """
         )
@@ -22,11 +24,18 @@ async def create(conn: Connection, data: AtendimentoCreate) -> dict:
     async with conn.cursor(row_factory=dict_row) as cur:
         await cur.execute(
             """
-            INSERT INTO atendimento (data_hora, duracao_minutos, id_paciente, id_residente, id_preceptor)
-            VALUES (%s, %s, %s, %s, %s)
-            RETURNING id_atendimento, data_hora, duracao_minutos, id_paciente, id_residente, id_preceptor
+            INSERT INTO atendimento (data_hora, duracao_minutos, id_paciente, id_residente, id_preceptor, id_unidade)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id_atendimento, data_hora, duracao_minutos, id_paciente, id_residente, id_preceptor, id_unidade
             """,
-            (data.data_hora, data.duracao_minutos, data.id_paciente, data.id_residente, data.id_preceptor),
+            (
+                data.data_hora,
+                data.duracao_minutos,
+                data.id_paciente,
+                data.id_residente,
+                data.id_preceptor,
+                data.id_unidade,
+            ),
         )
         row = await cur.fetchone()
         await conn.commit()
@@ -40,10 +49,11 @@ async def list_by_paciente(conn: Connection, id_paciente: int) -> list[dict] | N
         await cur.execute(
             """
             SELECT a.id_atendimento, a.data_hora, a.duracao_minutos, a.id_residente, a.id_preceptor,
-                   p_res.nome AS nome_residente, p_prec.nome AS nome_preceptor
+                   p_res.nome AS nome_residente, p_prec.nome AS nome_preceptor, u.nome AS nome_unidade
             FROM atendimento a
             LEFT JOIN pessoa p_res ON p_res.id_pessoa = a.id_residente
             LEFT JOIN pessoa p_prec ON p_prec.id_pessoa = a.id_preceptor
+            JOIN unidade u ON u.id_unidade = a.id_unidade
             WHERE a.id_paciente = %s
             ORDER BY a.data_hora ASC
             """,

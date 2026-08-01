@@ -21,6 +21,7 @@ from app.schemas.residente import (
     ResidenteTempoMedioResponse,
     ResidenteUpdate,
 )
+from app.schemas.unidade import UnidadeListItem
 
 __all__ = [
     "AtendimentoCreate",
@@ -47,4 +48,5 @@ __all__ = [
     "ResidenteResponse",
     "ResidenteTempoMedioResponse",
     "ResidenteUpdate",
+    "UnidadeListItem",
 ]

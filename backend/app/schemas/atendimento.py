@@ -9,6 +9,7 @@ class AtendimentoCreate(BaseModel):
     id_paciente: int
     id_residente: int
     id_preceptor: int
+    id_unidade: int
 
 
 class AtendimentoResponse(BaseModel):
@@ -18,6 +19,7 @@ class AtendimentoResponse(BaseModel):
     id_paciente: int
     id_residente: int
     id_preceptor: int
+    id_unidade: int
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -30,6 +32,7 @@ class AtendimentoDoPacienteResponse(BaseModel):
     id_preceptor: int
     nome_residente: str
     nome_preceptor: str
+    nome_unidade: str
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -50,5 +53,7 @@ class AtendimentoListItem(BaseModel):
     duracao_minutos: int
     id_paciente: int
     nome_paciente: str
+    id_unidade: int
+    nome_unidade: str
 
     model_config = ConfigDict(from_attributes=True)
