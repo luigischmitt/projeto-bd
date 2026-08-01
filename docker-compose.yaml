@@ -8,6 +8,10 @@ services:
       POSTGRES_DB: hospital_yuska
     ports:
       - "5432:5432"
+    # Carregados em ordem alfabética pelo docker-entrypoint-initdb.d.
     volumes:
       - ./db/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
-      - ./db/02_seed.sql:/docker-entrypoint-initdb.d/02_seed.sql
+      - ./db/02_procedures.sql:/docker-entrypoint-initdb.d/02_procedures.sql
+      - ./db/03_triggers.sql:/docker-entrypoint-initdb.d/03_triggers.sql
+      - ./db/04_views.sql:/docker-entrypoint-initdb.d/04_views.sql
+      - ./db/05_seed.sql:/docker-entrypoint-initdb.d/05_seed.sql

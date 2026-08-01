@@ -1,4 +1,4 @@
-# Modelagem — Sistema de Gestão Hospitalar Dra. Yuska (Etapa 1)
+# Modelagem — Sistema de Gestão Hospitalar Dra. Yuska
 
 ## 1. Diagrama entidade-relacionamento (DER)
 
@@ -11,6 +11,10 @@ O PDF já traz, nas páginas 2 e 3, as justificativas de cardinalidade e de espe
 Visão do DER (mesmo diagrama do PDF, em notação de Chen):
 
 ![DER conceitual](./print-der.png)
+
+O PDF e a imagem são o recorte da Etapa 1. As entidades e colunas acrescentadas na Etapa 2
+(`INTERNACAO`, `AUDITORIA_ATENDIMENTO`, `ATENDIMENTO.id_unidade` e as demais listadas na
+seção 4.3) estão no diagrama relacional da seção 4.1, que é a versão vigente do modelo.
 
 ## 2. Justificativas de cardinalidade
 
@@ -137,6 +141,22 @@ erDiagram
     int id_profissional PK, FK
     varchar titulacao
   }
+  INTERNACAO {
+    int id_internacao PK
+    int id_paciente FK
+    int id_unidade FK
+    timestamp data_hora_entrada
+    timestamp data_hora_saida
+  }
+  AUDITORIA_ATENDIMENTO {
+    int id_auditoria PK
+    int id_atendimento
+    varchar operacao
+    varchar usuario
+    timestamp data_hora
+    jsonb dados_antigos
+    jsonb dados_novos
+  }
   RESIDENTE {
     int id_profissional PK, FK
     varchar ano_residencia
@@ -154,6 +174,7 @@ erDiagram
     int id_paciente FK
     int id_residente FK
     int id_preceptor FK
+    int id_unidade FK
   }
   PROCEDIMENTO {
     int id_procedimento PK
@@ -161,12 +182,14 @@ erDiagram
     varchar nome
     int tempo_medio_minutos
     varchar nivel_risco
+    numeric media_tempo_procedimento
   }
   PROCEDIMENTO_REALIZADO {
     int id_atendimento PK, FK
     int id_procedimento PK, FK
     int quantidade
     int tempo_real_minutos
+    timestamp data_hora_inicio
     text observacao
     boolean faturado
   }
@@ -189,6 +212,9 @@ erDiagram
   ATENDIMENTO ||--o{ PROCEDIMENTO_REALIZADO : contem
   PROCEDIMENTO ||--o{ PROCEDIMENTO_REALIZADO : em
   UNIDADE ||--o{ ESCALA : possui
+  UNIDADE ||--o{ ATENDIMENTO : sedia
+  UNIDADE ||--o{ INTERNACAO : abriga
+  PACIENTE ||--o{ INTERNACAO : interna
   RESIDENTE ||--o{ ESCALA : escalado
   PRECEPTOR ||--o{ ESCALA : supervisiona
 ```
@@ -199,7 +225,11 @@ erDiagram
 
 As FKs de `atendimento` apontam para os **subtipos** (`residente`, `preceptor`), não para `profissional` — assim a integridade referencial já garante que o executor é um residente e o supervisor é um preceptor.
 
-**Domínios (aplicados via** `CHECK` **no schema):** `tipo` ∈ {ENFERMARIA, UTI, PRONTO_SOCORRO, AMBULATORIO}; `nivel_risco` ∈ {BAIXO, MEDIO, ALTO}; `ano_residencia` ∈ {R1, R2, R3}; `dia_semana` ∈ {SEG..DOM}; `turno` ∈ {MANHA, TARDE, NOITE}.
+**Domínios (aplicados via** `CHECK` **no schema):** `tipo` ∈ {ENFERMARIA, UTI, PRONTO_SOCORRO, AMBULATORIO}; `nivel_risco` ∈ {BAIXO, MEDIO, ALTO}; `ano_residencia` ∈ {R1, R2, R3}; `dia_semana` ∈ {SEG..DOM}; `turno` ∈ {MANHA, TARDE, NOITE}; `titulacao` ∈ {ESPECIALISTA, MESTRE, DOUTOR, POS_DOUTOR}; `operacao` ∈ {INSERT, UPDATE, DELETE}.
+
+`AUDITORIA_ATENDIMENTO` aparece no diagrama sem relacionamento: `id_atendimento` é gravado
+como referência lógica, **sem** `FOREIGN KEY`, porque o registro de auditoria precisa
+sobreviver ao `DELETE` do atendimento que ele documenta.
 
 ### 4.2 Acréscimos ao enunciado
 
@@ -212,7 +242,32 @@ As FKs de `atendimento` apontam para os **subtipos** (`residente`, `preceptor`),
 
 Não há coluna `endereco` no schema oficial; a atualização de paciente altera apenas `num_convenio` / `alergias` / `grupo_sanguineo`.
 
-### 4.3 Nota de modelagem: `escala` é grade semanal
+### 4.3 Evolução do modelo na Etapa 2
+
+As regras de negócio da Etapa 2 (procedures, triggers e views) pressupõem estruturas que o
+schema da Etapa 1 não tinha. Cada acréscimo abaixo existe para atender a um objeto de banco
+específico:
+
+| Acréscimo | Tipo | Exigido por |
+| --- | --- | --- |
+| `internacao` | tabela | `vw_pacientes_internados` — internação em curso é a linha mais recente do paciente com `data_hora_saida IS NULL` |
+| `auditoria_atendimento` | tabela | `trg_audita_atendimento` — grava `to_jsonb(OLD)`/`to_jsonb(NEW)`, `current_user` e `now()` |
+| `atendimento.id_unidade` | coluna `NOT NULL` | `sp_calcular_tempo_medio_espera` e `vw_estatisticas_atendimentos_mensal`, que agregam por unidade |
+| `procedimento_realizado.data_hora_inicio` | coluna | `sp_calcular_tempo_medio_espera` — a espera é a diferença entre a chegada (`atendimento.data_hora`) e o início do primeiro procedimento |
+| `procedimento.media_tempo_procedimento` | coluna | `trg_atualiza_media_procedimentos`, que mantém a média de `tempo_real_minutos` |
+| `CHECK` em `preceptor.titulacao` | restrição | `vw_residentes_sem_supervisor` precisa distinguir doutores de forma confiável, o que texto livre não garante |
+
+Notas de decisão:
+
+- **`atendimento.id_unidade` é obrigatória.** Todo atendimento acontece em algum lugar; deixar
+  a coluna nula tornaria as agregações por unidade incompletas e silenciosamente enviesadas.
+- **`internacao` é um evento com vigência,** não um atributo de `paciente`: o mesmo paciente
+  pode ter vários episódios, e é a ausência de `data_hora_saida` que caracteriza o episódio
+  aberto. O `CHECK` exige `data_hora_saida > data_hora_entrada` quando houver alta.
+- **`media_tempo_procedimento` é derivada** e, portanto, viola a 3FN de propósito: é uma
+  desnormalização controlada, mantida exclusivamente pela trigger, exigida pelo enunciado.
+
+### 4.4 Nota de modelagem: `escala` é grade semanal
 
 `escala` modela a organização dos plantões como **recorrência semanal** (`dia_semana` + `turno`), **sem data de calendário**, conforme o enunciado. Consequência: não há um "mês" a filtrar diretamente na tabela — a consulta 3 do req. 4 ("plantões no mês corrente") é resolvida sobre a grade vigente. Optou-se por manter o schema fiel ao enunciado em vez de adicionar uma competência (`ano`/`mes`), que exigiria alterar o `UNIQUE`.
 
@@ -222,5 +277,5 @@ Todas as relações estão na **3FN**. Análise por forma normal:
 
 1. **1FN (atributos atômicos, sem grupos repetidos):** todos os atributos são monovalorados e atômicos. Os vários procedimentos de um atendimento não viram colunas repetidas nem lista — são linhas em `procedimento_realizado`.
 2. **2FN (sem dependência parcial da chave):** a única chave composta é a de `procedimento_realizado` (`id_atendimento`, `id_procedimento`); seus atributos não-chave (`quantidade`, `tempo_real_minutos`, `observacao`, `faturado`) dependem do **par inteiro**. O que depende só do procedimento (`nome`, `tempo_medio_minutos`, `nivel_risco`) fica em `procedimento`; o que depende só do atendimento (`data_hora`, `duracao_minutos`, …) fica em `atendimento`. As demais tabelas têm PK simples, logo satisfazem 2FN trivialmente.
-3. **3FN (sem dependência transitiva):** nenhum atributo não-chave depende de outro atributo não-chave. Dados descritivos não são replicados — `atendimento` e `escala` guardam apenas FKs (não copiam nome/CPF/titulação); `titulacao` vive só em `preceptor` e `ano_residencia` só em `residente`. A especialização joined evita a dependência transitiva típica de uma tabela "achatada" (paciente e profissional juntos).
+3. **3FN (sem dependência transitiva):** com a exceção documentada de `procedimento.media_tempo_procedimento` (seção 4.3), nenhum atributo não-chave depende de outro atributo não-chave. Dados descritivos não são replicados — `atendimento` e `escala` guardam apenas FKs (não copiam nome/CPF/titulação); `titulacao` vive só em `preceptor` e `ano_residencia` só em `residente`. A especialização joined evita a dependência transitiva típica de uma tabela "achatada" (paciente e profissional juntos).
 

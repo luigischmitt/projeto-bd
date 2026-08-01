@@ -1,6 +1,9 @@
--- Schema Etapa 1 — Gestão Hospitalar Dra. Yuska
+-- Schema Etapa 2 — Gestão Hospitalar Dra. Yuska
 -- PostgreSQL — SQL puro
+-- Ordem de carga: 01_schema → 02_procedures → 03_triggers → 04_views → 05_seed
 
+DROP TABLE IF EXISTS auditoria_atendimento CASCADE;
+DROP TABLE IF EXISTS internacao CASCADE;
 DROP TABLE IF EXISTS procedimento_realizado CASCADE;
 DROP TABLE IF EXISTS escala CASCADE;
 DROP TABLE IF EXISTS atendimento CASCADE;
@@ -43,7 +46,9 @@ CREATE TABLE profissional (
 
 CREATE TABLE preceptor (
     id_profissional  INTEGER PRIMARY KEY,
-    titulacao        VARCHAR(60) NOT NULL,
+    titulacao        VARCHAR(20) NOT NULL,
+    CONSTRAINT ck_preceptor_titulacao
+        CHECK (titulacao IN ('ESPECIALISTA', 'MESTRE', 'DOUTOR', 'POS_DOUTOR')),
     CONSTRAINT fk_preceptor_profissional
         FOREIGN KEY (id_profissional) REFERENCES profissional (id_pessoa)
 );
@@ -69,11 +74,13 @@ CREATE TABLE unidade (
 );
 
 CREATE TABLE procedimento (
-    id_procedimento      SERIAL PRIMARY KEY,
-    codigo               VARCHAR(20) NOT NULL,
-    nome                 VARCHAR(120) NOT NULL,
-    tempo_medio_minutos  INTEGER NOT NULL,
-    nivel_risco          VARCHAR(5) NOT NULL,
+    id_procedimento           SERIAL PRIMARY KEY,
+    codigo                    VARCHAR(20) NOT NULL,
+    nome                      VARCHAR(120) NOT NULL,
+    tempo_medio_minutos       INTEGER NOT NULL,
+    nivel_risco               VARCHAR(5) NOT NULL,
+    -- Média observada, mantida por trg_atualiza_media_procedimentos; nula até o primeiro registro.
+    media_tempo_procedimento  NUMERIC(6,2),
     CONSTRAINT uq_procedimento_codigo UNIQUE (codigo),
     CONSTRAINT ck_procedimento_tempo
         CHECK (tempo_medio_minutos > 0),
@@ -88,8 +95,11 @@ CREATE TABLE atendimento (
     id_paciente       INTEGER NOT NULL,
     id_residente      INTEGER NOT NULL,
     id_preceptor      INTEGER NOT NULL,
+    id_unidade        INTEGER NOT NULL,
     CONSTRAINT ck_atendimento_duracao
         CHECK (duracao_minutos > 0),
+    CONSTRAINT fk_atendimento_unidade
+        FOREIGN KEY (id_unidade) REFERENCES unidade (id_unidade),
     CONSTRAINT fk_atendimento_paciente
         FOREIGN KEY (id_paciente) REFERENCES paciente (id_pessoa),
     CONSTRAINT fk_atendimento_residente
@@ -103,6 +113,8 @@ CREATE TABLE procedimento_realizado (
     id_procedimento      INTEGER NOT NULL,
     quantidade           INTEGER NOT NULL,
     tempo_real_minutos   INTEGER NOT NULL,
+    -- Início da execução; com atendimento.data_hora (chegada) dá o tempo de espera do paciente.
+    data_hora_inicio     TIMESTAMP,
     observacao           TEXT,
     faturado             BOOLEAN NOT NULL DEFAULT FALSE,
     CONSTRAINT pk_procedimento_realizado
@@ -137,3 +149,35 @@ CREATE TABLE escala (
     CONSTRAINT fk_escala_preceptor
         FOREIGN KEY (id_preceptor) REFERENCES preceptor (id_profissional)
 );
+
+CREATE TABLE internacao (
+    id_internacao      SERIAL PRIMARY KEY,
+    id_paciente        INTEGER NOT NULL,
+    id_unidade         INTEGER NOT NULL,
+    data_hora_entrada  TIMESTAMP NOT NULL,
+    data_hora_saida    TIMESTAMP,
+    CONSTRAINT ck_internacao_saida
+        CHECK (data_hora_saida IS NULL OR data_hora_saida > data_hora_entrada),
+    CONSTRAINT fk_internacao_paciente
+        FOREIGN KEY (id_paciente) REFERENCES paciente (id_pessoa),
+    CONSTRAINT fk_internacao_unidade
+        FOREIGN KEY (id_unidade) REFERENCES unidade (id_unidade)
+);
+
+-- data_hora_saida NULL = internação em curso, critério de vw_pacientes_internados.
+CREATE INDEX ix_internacao_em_curso ON internacao (id_paciente, data_hora_entrada DESC);
+
+CREATE TABLE auditoria_atendimento (
+    id_auditoria    SERIAL PRIMARY KEY,
+    id_atendimento  INTEGER NOT NULL,
+    operacao        VARCHAR(6) NOT NULL,
+    usuario         VARCHAR(80) NOT NULL,
+    data_hora       TIMESTAMP NOT NULL DEFAULT now(),
+    dados_antigos   JSONB,
+    dados_novos     JSONB,
+    CONSTRAINT ck_auditoria_operacao
+        CHECK (operacao IN ('INSERT', 'UPDATE', 'DELETE'))
+);
+
+-- id_atendimento é intencionalmente sem FK: o log precisa sobreviver ao DELETE do atendimento auditado.
+CREATE INDEX ix_auditoria_atendimento ON auditoria_atendimento (id_atendimento, data_hora DESC);

@@ -34,7 +34,9 @@ async def create_atendimento(atendimento: AtendimentoCreate, conn: Connection = 
             raise HTTPException(status_code=400, detail=f"Residente com id_profissional {atendimento.id_residente} não existe.")
         if constraint == "fk_atendimento_preceptor":
             raise HTTPException(status_code=400, detail=f"Preceptor com id_profissional {atendimento.id_preceptor} não existe.")
-        raise HTTPException(status_code=400, detail="Violação de chave estrangeira: paciente, residente ou preceptor inexistente.")
+        if constraint == "fk_atendimento_unidade":
+            raise HTTPException(status_code=400, detail=f"Unidade com id_unidade {atendimento.id_unidade} não existe.")
+        raise HTTPException(status_code=400, detail="Violação de chave estrangeira: paciente, residente, preceptor ou unidade inexistente.")
 
 
 @router.get(

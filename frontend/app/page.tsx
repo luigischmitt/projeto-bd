@@ -70,11 +70,18 @@ type ProcedimentoOption = {
   faturado: boolean
 }
 
+type UnidadeOption = {
+  id_unidade: number
+  nome: string
+  tipo: string
+  capacidade_leitos: number
+}
+
 const VIEWS = {
   novo: {
     group: "Atendimentos",
     title: "Novo atendimento",
-    description: "Selecione paciente, residente e preceptor para registrar um atendimento.",
+    description: "Selecione paciente, residente, preceptor e unidade para registrar um atendimento.",
   },
   consultas: {
     group: "Atendimentos",
@@ -194,6 +201,7 @@ export default function Home() {
   const [residentes, setResidentes] = useState<ResidenteOption[]>([])
   const [preceptores, setPreceptores] = useState<PreceptorOption[]>([])
   const [atendimentos, setAtendimentos] = useState<AtendimentoOption[]>([])
+  const [unidades, setUnidades] = useState<UnidadeOption[]>([])
   const [procedimentosAtendimento, setProcedimentosAtendimento] = useState<ProcedimentoOption[]>([])
 
   const [patientId, setPatientId] = useState("")
@@ -240,14 +248,15 @@ export default function Home() {
     setCatalogLoading(true)
     setCatalogError(null)
     try {
-      const [pacientesRes, residentesRes, preceptoresRes, atendimentosRes] = await Promise.all([
+      const [pacientesRes, residentesRes, preceptoresRes, atendimentosRes, unidadesRes] = await Promise.all([
         fetch(`${api}/pacientes`),
         fetch(`${api}/residentes`),
         fetch(`${api}/preceptores`),
         fetch(`${api}/atendimentos`),
+        fetch(`${api}/unidades`),
       ])
 
-      if (!pacientesRes.ok || !residentesRes.ok || !preceptoresRes.ok || !atendimentosRes.ok) {
+      if (!pacientesRes.ok || !residentesRes.ok || !preceptoresRes.ok || !atendimentosRes.ok || !unidadesRes.ok) {
         throw new Error("Não foi possível carregar os cadastros do hospital.")
       }
 
@@ -255,6 +264,7 @@ export default function Home() {
       setResidentes(await residentesRes.json())
       setPreceptores(await preceptoresRes.json())
       setAtendimentos(await atendimentosRes.json())
+      setUnidades(await unidadesRes.json())
     } catch (error) {
       setCatalogError(error instanceof Error ? error.message : "Erro ao carregar cadastros.")
     } finally {
@@ -414,6 +424,7 @@ export default function Home() {
         id_paciente: Number(form.get("id_paciente")),
         id_residente: Number(form.get("id_residente")),
         id_preceptor: Number(form.get("id_preceptor")),
+        id_unidade: Number(form.get("id_unidade")),
       }),
     })
   }
@@ -548,7 +559,7 @@ export default function Home() {
                   <CalendarPlus className="size-4 text-primary" /> Novo atendimento
                 </CardTitle>
                 <CardDescription>
-                  Escolha quem participou do atendimento. Paciente, residente e preceptor devem estar cadastrados.
+                  Escolha quem participou do atendimento e em qual unidade ele ocorreu.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -586,6 +597,17 @@ export default function Home() {
                     options={preceptores.map((item) => ({
                       value: String(item.id_profissional),
                       label: `${item.nome} — ${item.titulacao}`,
+                    }))}
+                  />
+                  <SelectField
+                    label="Unidade"
+                    name="id_unidade"
+                    required
+                    disabled={!catalogReady}
+                    placeholder="Selecione a unidade"
+                    options={unidades.map((item) => ({
+                      value: String(item.id_unidade),
+                      label: `${item.nome} (${item.tipo.replaceAll("_", " ").toLowerCase()})`,
                     }))}
                   />
                   <Button className="mt-auto" type="submit" disabled={!catalogReady}>

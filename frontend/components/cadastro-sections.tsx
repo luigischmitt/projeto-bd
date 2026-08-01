@@ -19,6 +19,14 @@ const selectClassName =
 
 export type CadastroMode = "novo" | "atualizar"
 
+// Domínio fechado espelhando o CHECK ck_preceptor_titulacao.
+const TITULACOES = [
+  { value: "ESPECIALISTA", label: "Especialista" },
+  { value: "MESTRE", label: "Mestre" },
+  { value: "DOUTOR", label: "Doutor" },
+  { value: "POS_DOUTOR", label: "Pós-doutor" },
+]
+
 export type PacienteOption = {
   id_pessoa: number
   nome: string
@@ -510,7 +518,13 @@ export function PreceptoresSection({
         {mode === "novo" ? (
           <form onSubmit={onCreate} className="grid gap-4 sm:grid-cols-2">
             <ProfissionalFieldsForm />
-            <Field label="Titulação" name="titulacao" placeholder="Ex.: Doutor, Mestre" required />
+            <SelectField
+              label="Titulação"
+              name="titulacao"
+              required
+              placeholder="Selecione a titulação"
+              options={TITULACOES}
+            />
             <Button type="submit" disabled={!catalogReady} className="sm:col-span-2 sm:w-fit">
               <UserPlus className="mr-2 size-4" />
               Cadastrar preceptor
@@ -538,7 +552,14 @@ export function PreceptoresSection({
             <Field label="CRM" value={form.crm} onChange={form.setCrm} required />
             <Field label="Data de admissão" value={form.dataAdmissao} onChange={form.setDataAdmissao} type="date" required />
             <Field label="Especialidade" value={form.especialidade} onChange={form.setEspecialidade} required />
-            <Field label="Titulação" value={form.titulacao} onChange={form.setTitulacao} required />
+            <SelectField
+              label="Titulação"
+              value={form.titulacao}
+              onChange={form.setTitulacao}
+              required
+              placeholder="Selecione a titulação"
+              options={TITULACOES}
+            />
             <Button type="submit" disabled={!preceptorId || !catalogReady} className="sm:col-span-2 sm:w-fit">
               Salvar alterações
             </Button>
