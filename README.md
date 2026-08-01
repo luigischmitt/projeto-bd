@@ -39,10 +39,14 @@ Projeto acadêmico de Banco de Dados (Etapa 1): modelagem relacional, schema Pos
 projeto-bd/
 ├── db/
 │   ├── 01_schema.sql       # CREATE TABLE e constraints
-│   ├── 02_seed.sql         # dados de teste
+│   ├── 02_procedures.sql   # stored procedures (Etapa 2)
+│   ├── 03_triggers.sql     # triggers (Etapa 2)
+│   ├── 04_views.sql        # views (Etapa 2)
+│   ├── 05_seed.sql         # dados de teste
 │   └── consultas.sql       # 4 consultas analíticas (referência)
 ├── backend/
 │   ├── requirements.txt
+│   ├── requirements-dev.txt
 │   ├── pytest.ini
 │   ├── .env.example
 │   ├── app/
@@ -78,6 +82,7 @@ Routers em `app/api/`:
 | `pacientes.py` | `/pacientes` | CRUD de pacientes + atendimentos do paciente |
 | `residentes.py` | `/residentes` | CRUD de residentes + tempo médio |
 | `preceptores.py` | `/preceptores` | CRUD de preceptores |
+| `unidades.py` | `/unidades` | Listagem de unidades hospitalares |
 | `atendimentos.py` | `/atendimentos` | CRUD de atendimentos + procedimentos |
 | `analytics.py` | `/analytics` | Relatórios analíticos |
 
@@ -109,7 +114,7 @@ Isso sobe o PostgreSQL na porta `5432` com:
 | Senha | `postgres` |
 | Database | `hospital_yuska` |
 
-No **primeiro** start (volume vazio), os scripts `db/01_schema.sql` e `db/02_seed.sql` são aplicados automaticamente.
+No **primeiro** start (volume vazio), os scripts de `db/` são aplicados automaticamente em ordem alfabética: schema, procedures, triggers, views e, por último, o seed.
 
 Para reiniciar o banco do zero (reaplica schema e seed):
 
@@ -123,7 +128,10 @@ docker compose up -d
 ```bash
 createdb -U postgres hospital_yuska
 psql -U postgres -d hospital_yuska -f db/01_schema.sql
-psql -U postgres -d hospital_yuska -f db/02_seed.sql
+psql -U postgres -d hospital_yuska -f db/02_procedures.sql
+psql -U postgres -d hospital_yuska -f db/03_triggers.sql
+psql -U postgres -d hospital_yuska -f db/04_views.sql
+psql -U postgres -d hospital_yuska -f db/05_seed.sql
 ```
 
 ### 2. Backend (API)
@@ -200,7 +208,10 @@ npm run dev
 | Arquivo | Função |
 |---------|--------|
 | `db/01_schema.sql` | Cria as tabelas e constraints (PK, FK, CHECK, UNIQUE, NOT NULL) |
-| `db/02_seed.sql` | Insere massa de dados de teste |
+| `db/02_procedures.sql` | Stored procedures da Etapa 2 |
+| `db/03_triggers.sql` | Triggers da Etapa 2 |
+| `db/04_views.sql` | Views da Etapa 2 |
+| `db/05_seed.sql` | Insere massa de dados de teste (roda por último, já com as triggers ativas) |
 | `db/consultas.sql` | Quatro consultas analíticas da Etapa 1 (para demonstração no `psql`) |
 
 Executar as consultas analíticas no banco já populado:
@@ -233,7 +244,7 @@ Com o banco acessível e o venv do backend ativo:
 
 ```bash
 cd backend
-pip install pytest
+pip install -r requirements-dev.txt
 pytest
 ```
 
@@ -256,8 +267,9 @@ Documentação interativa: http://localhost:8000/docs
 | `GET` | `/preceptores` | Lista preceptores cadastrados |
 | `POST` | `/preceptores` | Cadastra preceptor |
 | `PUT` | `/preceptores/{id}` | Atualiza preceptor |
+| `GET` | `/unidades` | Lista unidades hospitalares |
 | `GET` | `/atendimentos` | Lista atendimentos cadastrados |
-| `POST` | `/atendimentos` | Cria atendimento |
+| `POST` | `/atendimentos` | Cria atendimento (exige `id_unidade`) |
 | `GET` | `/pacientes/{id}/atendimentos` | Atendimentos do paciente |
 | `GET` | `/atendimentos/{id}/procedimentos` | Procedimentos do atendimento |
 | `DELETE` | `/atendimentos/{id}/procedimentos/{cod}` | Remove procedimento se não faturado |
