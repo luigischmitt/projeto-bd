@@ -11,8 +11,9 @@ class Settings(BaseSettings):
 
     @property
     def SQLALCHEMY_DATABASE_URL(self) -> str:
-        """DATABASE_URL (usada pelo pool psycopg em SQL cru) convertida para a URL de
-        dialeto que o SQLAlchemy espera, mantendo o mesmo driver psycopg3 (sem asyncpg)."""
+        """DATABASE_URL (usada em conexões psycopg cruas, ex.: testes que chamam
+        procedures/views direto via `psycopg.connect`) convertida para a URL de dialeto
+        que o SQLAlchemy espera, mantendo o mesmo driver psycopg3 (sem asyncpg)."""
         url = self.DATABASE_URL
         if url.startswith("postgresql+psycopg://"):
             return url

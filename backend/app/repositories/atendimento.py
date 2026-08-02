@@ -1,4 +1,6 @@
-from sqlalchemy import select
+import json
+
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, lazyload, selectinload
 
@@ -6,7 +8,7 @@ from app.models.atendimento import Atendimento
 from app.models.procedimento import Procedimento
 from app.models.procedimento_realizado import ProcedimentoRealizado
 from app.repositories import paciente as paciente_repo
-from app.schemas.atendimento import AtendimentoCreate
+from app.schemas.atendimento import AtendimentoCompletoCreate, AtendimentoCreate
 
 
 async def list_all(session: AsyncSession) -> list[dict]:
@@ -42,6 +44,37 @@ async def create(session: AsyncSession, data: AtendimentoCreate) -> Atendimento:
         session.add(atendimento)
         await session.flush()
     return atendimento
+
+
+async def registrar_completo(session: AsyncSession, data: AtendimentoCompletoCreate) -> int:
+    """Invoca `sp_registrar_atendimento_completo` (db/02_procedures.sql, issue #4), uma
+    FUNCTION chamada com `SELECT`. Falha de FK (referência inexistente) ou de CHECK
+    (ex.: `quantidade` <= 0) no meio do laço de procedimentos faz o banco desfazer TUDO,
+    incluindo o `INSERT` do atendimento — a procedure já garante essa atomicidade via
+    savepoint implícito (ver comentário em `db/02_procedures.sql`); aqui só propagamos o
+    `RAISE EXCEPTION` como `sqlalchemy.exc.DBAPIError` para `app/api/atendimentos.py`
+    traduzir em HTTP 400."""
+    procedimentos_json = json.dumps(
+        [item.model_dump(mode="json") for item in data.procedimentos]
+    )
+    async with session.begin():
+        result = await session.execute(
+            text(
+                "SELECT sp_registrar_atendimento_completo("
+                ":data_hora, :duracao_minutos, :id_paciente, :id_residente, "
+                ":id_preceptor, :id_unidade, CAST(:procedimentos AS JSONB))"
+            ),
+            {
+                "data_hora": data.data_hora,
+                "duracao_minutos": data.duracao_minutos,
+                "id_paciente": data.id_paciente,
+                "id_residente": data.id_residente,
+                "id_preceptor": data.id_preceptor,
+                "id_unidade": data.id_unidade,
+                "procedimentos": procedimentos_json,
+            },
+        )
+        return result.scalar_one()
 
 
 async def list_by_paciente(session: AsyncSession, id_paciente: int) -> list[dict] | None:

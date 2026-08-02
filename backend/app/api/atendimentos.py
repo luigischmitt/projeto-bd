@@ -1,13 +1,15 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
-from psycopg.errors import ForeignKeyViolation
-from sqlalchemy.exc import IntegrityError
+from psycopg.errors import ForeignKeyViolation, RaiseException
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
 from app.repositories import atendimento as atendimento_repo
 from app.schemas import (
+    AtendimentoCompletoCreate,
+    AtendimentoCompletoResponse,
     AtendimentoCreate,
     AtendimentoListItem,
     AtendimentoProcedimentoResponse,
@@ -39,6 +41,28 @@ async def create_atendimento(atendimento: AtendimentoCreate, session: AsyncSessi
         if constraint == "fk_atendimento_unidade":
             raise HTTPException(status_code=400, detail=f"Unidade com id_unidade {atendimento.id_unidade} não existe.")
         raise HTTPException(status_code=400, detail="Violação de chave estrangeira: paciente, residente, preceptor ou unidade inexistente.")
+
+
+@router.post(
+    "/completo",
+    response_model=AtendimentoCompletoResponse,
+    status_code=201,
+    summary="Registra um atendimento e seus procedimentos realizados em uma única transação",
+)
+async def post_atendimento_completo(
+    data: AtendimentoCompletoCreate, session: AsyncSession = Depends(get_session)
+):
+    """Chama `sp_registrar_atendimento_completo`. FK/CHECK inválidos no banco viram
+    `DBAPIError(orig=RaiseException)`; traduzimos para 400 com a mensagem legível que a
+    própria procedure já formata (ver `db/02_procedures.sql`), em vez de deixar subir
+    como 500."""
+    try:
+        id_atendimento = await atendimento_repo.registrar_completo(session, data)
+    except DBAPIError as err:
+        if not isinstance(err.orig, RaiseException):
+            raise
+        raise HTTPException(status_code=400, detail=err.orig.diag.message_primary)
+    return {"id_atendimento": id_atendimento}
 
 
 @router.get(
