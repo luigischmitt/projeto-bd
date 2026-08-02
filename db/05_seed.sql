@@ -120,14 +120,19 @@ INSERT INTO escala (id_escala, id_unidade, dia_semana, turno, id_residente, id_p
 SELECT setval('escala_id_escala_seq', 7);
 
 -- Internações: 3 em curso (sem alta) e 3 encerradas, base de vw_pacientes_internados.
--- O paciente 1 tem uma internação encerrada e outra em curso; o paciente 5 só tem
--- internação encerrada, então não deve aparecer na view.
+-- O paciente 1 tem uma internação encerrada e outra em curso: a mais recente (6) decide
+-- e ele aparece na view. O paciente 5 só tem internação encerrada, então não aparece.
+-- O paciente 4 cobre o caso simétrico: uma internação em curso (7) fica "no meio" do
+-- histórico, mas a mais recente (8) já tem alta, então o paciente 4 também não aparece,
+-- mesmo tendo passado por uma internação sem data_hora_saida.
 INSERT INTO internacao (id_internacao, id_paciente, id_unidade, data_hora_entrada, data_hora_saida) VALUES
 (1, 1, 1, '2026-06-02 09:00:00', '2026-06-05 10:00:00'),
 (2, 2, 2, '2026-06-03 10:00:00', NULL),
 (3, 3, 1, '2026-06-04 11:00:00', NULL),
 (4, 4, 3, '2026-05-12 10:00:00', '2026-05-14 08:00:00'),
 (5, 5, 1, '2026-05-15 11:00:00', '2026-05-16 12:00:00'),
-(6, 1, 2, '2026-06-20 07:00:00', NULL);
+(6, 1, 2, '2026-06-20 07:00:00', NULL),
+(7, 4, 1, '2026-06-25 09:00:00', NULL),
+(8, 4, 1, '2026-06-28 09:00:00', '2026-06-29 09:00:00');
 
-SELECT setval('internacao_id_internacao_seq', 6);
+SELECT setval('internacao_id_internacao_seq', 8);
