@@ -3,9 +3,15 @@
 import * as React from "react"
 import {
   Activity,
+  BarChart3,
+  BedDouble,
+  CalendarClock,
   CalendarPlus,
   GraduationCap,
+  History,
+  ListPlus,
   Search,
+  ShieldAlert,
   Stethoscope,
   Trash2,
   UserCog,
@@ -26,6 +32,7 @@ import {
 
 export const atendimentosItems: NavItem[] = [
   { id: "novo", title: "Novo atendimento", icon: <CalendarPlus /> },
+  { id: "atendimento-completo", title: "Atendimento completo", icon: <ListPlus /> },
   { id: "consultas", title: "Consultas", icon: <Search /> },
 ]
 
@@ -34,6 +41,20 @@ export const cadastrosItems: NavItem[] = [
   { id: "residentes", title: "Residentes", icon: <GraduationCap /> },
   { id: "preceptores", title: "Preceptores", icon: <UserCog /> },
   { id: "procedimentos", title: "Procedimentos", icon: <Trash2 /> },
+]
+
+export const escalasItems: NavItem[] = [
+  { id: "escalas", title: "Escalas", icon: <CalendarClock /> },
+]
+
+export const visoesItems: NavItem[] = [
+  { id: "pacientes-internados", title: "Pacientes internados", icon: <BedDouble /> },
+  { id: "residentes-sem-supervisor", title: "Residentes sem supervisor", icon: <ShieldAlert /> },
+  { id: "estatisticas-mensais", title: "Estatísticas mensais", icon: <BarChart3 /> },
+]
+
+export const auditoriaItems: NavItem[] = [
+  { id: "auditoria", title: "Auditoria", icon: <History /> },
 ]
 
 export const relatoriosItems: NavItem[] = [
@@ -77,6 +98,24 @@ export function AppSidebar({
         <NavMain
           label="Cadastros"
           items={cadastrosItems}
+          activeId={activeId}
+          onSelect={onSelect}
+        />
+        <NavMain
+          label="Escalas"
+          items={escalasItems}
+          activeId={activeId}
+          onSelect={onSelect}
+        />
+        <NavMain
+          label="Visões"
+          items={visoesItems}
+          activeId={activeId}
+          onSelect={onSelect}
+        />
+        <NavMain
+          label="Auditoria"
+          items={auditoriaItems}
           activeId={activeId}
           onSelect={onSelect}
         />

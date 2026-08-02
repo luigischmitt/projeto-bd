@@ -12,6 +12,8 @@ import {
 } from "lucide-react"
 
 import { AppSidebar } from "@/components/app-sidebar"
+import { AtendimentoCompletoSection } from "@/components/atendimento-completo-section"
+import { AuditoriaSection } from "@/components/auditoria-section"
 import {
   PacientesSection,
   PreceptoresSection,
@@ -24,6 +26,8 @@ import {
   type PreceptorOption,
   type ResidenteOption,
 } from "@/components/cadastro-sections"
+import { EscalasSection } from "@/components/escalas-section"
+import { Field, SelectField } from "@/components/form-fields"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -48,8 +52,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-
-const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+import {
+  EstatisticasMensaisSection,
+  PacientesInternadosSection,
+  ResidentesSemSupervisorSection,
+} from "@/components/views-sections"
+import { api, formatDateTime } from "@/lib/api"
 
 type Row = Record<string, unknown>
 type Status = "idle" | "loading" | "success" | "error"
@@ -113,22 +121,40 @@ const VIEWS = {
     title: "Painel analítico",
     description: "Indicadores operacionais do hospital.",
   },
+  "atendimento-completo": {
+    group: "Atendimentos",
+    title: "Atendimento completo",
+    description:
+      "Registre o atendimento e todos os procedimentos realizados em uma única transação.",
+  },
+  escalas: {
+    group: "Escalas",
+    title: "Escalas",
+    description: "Ajuste escalas de residentes sem supervisão de um preceptor doutor.",
+  },
+  "pacientes-internados": {
+    group: "Visões",
+    title: "Pacientes internados",
+    description: "Pacientes cuja internação mais recente ainda está em curso.",
+  },
+  "residentes-sem-supervisor": {
+    group: "Visões",
+    title: "Residentes sem supervisor",
+    description: "Escalas de residentes sem supervisão de preceptor doutor.",
+  },
+  "estatisticas-mensais": {
+    group: "Visões",
+    title: "Estatísticas mensais",
+    description: "Indicadores mensais de atendimentos por unidade.",
+  },
+  auditoria: {
+    group: "Auditoria",
+    title: "Auditoria",
+    description: "Histórico de alterações em atendimentos, com o diff entre versões.",
+  },
 } as const
 
 type ViewId = keyof typeof VIEWS
-
-const selectClassName =
-  "border-input bg-background ring-offset-background focus-visible:ring-ring flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-}
 
 function StatusPill({ status, message }: { status: Status; message: string }) {
   const styles: Record<Status, string> = {
@@ -834,6 +860,27 @@ export default function Home() {
             </Card>
           )}
 
+          {view === "atendimento-completo" && (
+            <AtendimentoCompletoSection
+              catalogReady={catalogReady}
+              pacientes={pacientes}
+              residentes={residentes}
+              preceptores={preceptores}
+              unidades={unidades}
+              onCreated={loadCatalog}
+            />
+          )}
+
+          {view === "escalas" && <EscalasSection />}
+
+          {view === "pacientes-internados" && <PacientesInternadosSection />}
+
+          {view === "residentes-sem-supervisor" && <ResidentesSemSupervisorSection />}
+
+          {view === "estatisticas-mensais" && <EstatisticasMensaisSection />}
+
+          {view === "auditoria" && <AuditoriaSection />}
+
           {view === "relatorios" && (
             <Card>
               <CardHeader>
@@ -899,75 +946,5 @@ export default function Home() {
         </div>
       </SidebarInset>
     </SidebarProvider>
-  )
-}
-
-function Field({
-  label,
-  name,
-  value,
-  onChange,
-  ...props
-}: Omit<React.ComponentProps<typeof Input>, "onChange" | "value"> & {
-  label: string
-  name?: string
-  value?: string
-  onChange?: (value: string) => void
-}) {
-  const id = name ?? label.toLowerCase().replaceAll(" ", "-")
-  return (
-    <div className="grid gap-2">
-      <Label htmlFor={id}>{label}</Label>
-      <Input
-        id={id}
-        name={name}
-        value={value}
-        onChange={(event) => onChange?.(event.target.value)}
-        {...props}
-      />
-    </div>
-  )
-}
-
-function SelectField({
-  label,
-  name,
-  value,
-  onChange,
-  options,
-  placeholder,
-  required,
-  disabled,
-}: {
-  label: string
-  name?: string
-  value?: string
-  onChange?: (value: string) => void
-  options: { value: string; label: string; disabled?: boolean }[]
-  placeholder?: string
-  required?: boolean
-  disabled?: boolean
-}) {
-  const id = name ?? label.toLowerCase().replaceAll(" ", "-")
-  return (
-    <div className="grid gap-2">
-      <Label htmlFor={id}>{label}</Label>
-      <select
-        id={id}
-        name={name}
-        {...(value !== undefined ? { value } : {})}
-        required={required}
-        disabled={disabled}
-        onChange={(event) => onChange?.(event.target.value)}
-        className={selectClassName}
-      >
-        <option value="">{placeholder ?? "Selecione..."}</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value} disabled={option.disabled}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </div>
   )
 }
