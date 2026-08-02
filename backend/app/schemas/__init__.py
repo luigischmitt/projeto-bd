@@ -1,9 +1,12 @@
 from app.schemas.analytics import (
     PacienteSemRiscoAltoResponse,
+    PercentualAltoRiscoResponse,
     PlantoesUnidadeResponse,
+    PreceptorFlamenguistaResponse,
     PreceptorSupervisaoResponse,
     RankingResidentesResponse,
     TempoMedioEsperaResponse,
+    UltimoAtendimentoPacienteResponse,
 )
 from app.schemas.atendimento import (
     AtendimentoCompletoCreate,
@@ -52,9 +55,11 @@ __all__ = [
     "PacienteResponse",
     "PacienteSemRiscoAltoResponse",
     "PacienteUpdate",
+    "PercentualAltoRiscoResponse",
     "PessoaFields",
     "PlantoesUnidadeResponse",
     "PreceptorCreate",
+    "PreceptorFlamenguistaResponse",
     "PreceptorListItem",
     "PreceptorResponse",
     "PreceptorSupervisaoResponse",
@@ -70,5 +75,6 @@ __all__ = [
     "ResidenteTempoMedioResponse",
     "ResidenteUpdate",
     "TempoMedioEsperaResponse",
+    "UltimoAtendimentoPacienteResponse",
     "UnidadeListItem",
 ]

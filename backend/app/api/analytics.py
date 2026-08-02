@@ -7,10 +7,13 @@ from app.db.session import get_session
 from app.repositories import analytics as analytics_repo
 from app.schemas import (
     PacienteSemRiscoAltoResponse,
+    PercentualAltoRiscoResponse,
     PlantoesUnidadeResponse,
+    PreceptorFlamenguistaResponse,
     PreceptorSupervisaoResponse,
     RankingResidentesResponse,
     TempoMedioEsperaResponse,
+    UltimoAtendimentoPacienteResponse,
 )
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
@@ -66,3 +69,30 @@ async def get_pacientes_sem_risco_alto(session: AsyncSession = Depends(get_sessi
 )
 async def get_tempo_medio_espera(session: AsyncSession = Depends(get_session)):
     return await analytics_repo.tempo_medio_espera(session)
+
+
+@router.get(
+    "/preceptores-flamenguistas",
+    response_model=List[PreceptorFlamenguistaResponse],
+    summary="Preceptores que supervisionaram residentes que atenderam pacientes flamenguistas",
+)
+async def get_preceptores_flamenguistas(session: AsyncSession = Depends(get_session)):
+    return await analytics_repo.preceptores_flamenguistas(session)
+
+
+@router.get(
+    "/ultimo-atendimento-por-paciente",
+    response_model=List[UltimoAtendimentoPacienteResponse],
+    summary="Atendimento mais recente de cada paciente, com residente, preceptor e procedimentos",
+)
+async def get_ultimo_atendimento_por_paciente(session: AsyncSession = Depends(get_session)):
+    return await analytics_repo.ultimo_atendimento_por_paciente(session)
+
+
+@router.get(
+    "/percentual-alto-risco",
+    response_model=List[PercentualAltoRiscoResponse],
+    summary="Percentual de procedimentos de nível de risco ALTO sobre o total realizado por cada residente",
+)
+async def get_percentual_alto_risco(session: AsyncSession = Depends(get_session)):
+    return await analytics_repo.percentual_alto_risco_por_residente(session)
