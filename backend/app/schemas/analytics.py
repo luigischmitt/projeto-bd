@@ -28,3 +28,13 @@ class PacienteSemRiscoAltoResponse(BaseModel):
     nome: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TempoMedioEsperaResponse(BaseModel):
+    """Resultado de `sp_calcular_tempo_medio_espera` (db/02_procedures.sql, issue #4)."""
+
+    id_unidade: int
+    nome_unidade: str
+    tempo_medio_espera_minutos: float
+
+    model_config = ConfigDict(from_attributes=True)
