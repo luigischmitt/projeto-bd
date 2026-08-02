@@ -10,11 +10,14 @@ from app.api.router import router as api_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # O pool psycopg (SQL cru) e a engine SQLAlchemy convivem de propósito nesta issue
-    # (#7): os repositories em `app/repositories/` ainda usam `get_db`/pool e só migram
-    # para a DSL do SQLAlchemy nas issues #8 e #9. Remover o pool agora quebraria a
-    # aplicação. `engine` não precisa de setup explícito de conexão aqui — ela abre
-    # conexões sob demanda e é apenas descartada (`dispose`) no shutdown.
+    # A issue #8 migrou pacientes/residentes/preceptores/atendimentos/unidades para a
+    # DSL do SQLAlchemy (ver app/repositories/), mas `app/repositories/analytics.py` e
+    # `app/api/analytics.py` ficam fora do escopo desta issue (entram na #9) e ainda
+    # usam `get_db`/pool psycopg cru. Por isso o pool continua vivo aqui só para os
+    # analíticos — sai por completo (junto com `app/core/database.py`) quando a #9
+    # terminar a migração. `engine` (SQLAlchemy) não precisa de setup explícito de
+    # conexão aqui — ela abre conexões sob demanda e é apenas descartada (`dispose`) no
+    # shutdown.
     async with lifespan_db(app):
         try:
             yield
