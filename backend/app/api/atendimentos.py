@@ -1,10 +1,11 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
-from psycopg import Connection
 from psycopg.errors import ForeignKeyViolation
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.db.session import get_session
 from app.repositories import atendimento as atendimento_repo
 from app.schemas import (
     AtendimentoCreate,
@@ -17,17 +18,18 @@ router = APIRouter(prefix="/atendimentos", tags=["Atendimentos"])
 
 
 @router.get("", response_model=List[AtendimentoListItem], summary="Lista atendimentos cadastrados")
-async def list_atendimentos(conn: Connection = Depends(get_db)):
-    return await atendimento_repo.list_all(conn)
+async def list_atendimentos(session: AsyncSession = Depends(get_session)):
+    return await atendimento_repo.list_all(session)
 
 
 @router.post("", response_model=AtendimentoResponse, status_code=201, summary="Cria um novo atendimento")
-async def create_atendimento(atendimento: AtendimentoCreate, conn: Connection = Depends(get_db)):
+async def create_atendimento(atendimento: AtendimentoCreate, session: AsyncSession = Depends(get_session)):
     try:
-        return await atendimento_repo.create(conn, atendimento)
-    except ForeignKeyViolation as err:
-        await conn.rollback()
-        constraint = err.diag.constraint_name
+        return await atendimento_repo.create(session, atendimento)
+    except IntegrityError as err:
+        if not isinstance(err.orig, ForeignKeyViolation):
+            raise
+        constraint = err.orig.diag.constraint_name
         if constraint == "fk_atendimento_paciente":
             raise HTTPException(status_code=400, detail=f"Paciente com id_pessoa {atendimento.id_paciente} não existe.")
         if constraint == "fk_atendimento_residente":
@@ -44,8 +46,8 @@ async def create_atendimento(atendimento: AtendimentoCreate, conn: Connection = 
     response_model=List[AtendimentoProcedimentoResponse],
     summary="Lista procedimentos realizados em um atendimento",
 )
-async def get_atendimento_procedimentos(id: int, conn: Connection = Depends(get_db)):
-    rows = await atendimento_repo.list_procedimentos(conn, id)
+async def get_atendimento_procedimentos(id: int, session: AsyncSession = Depends(get_session)):
+    rows = await atendimento_repo.list_procedimentos(session, id)
     if rows is None:
         raise HTTPException(status_code=404, detail=f"Atendimento com ID {id} não encontrado.")
     return rows
@@ -56,8 +58,8 @@ async def get_atendimento_procedimentos(id: int, conn: Connection = Depends(get_
     status_code=204,
     summary="Remove a realização de um procedimento em um atendimento (se não faturado)",
 )
-async def delete_procedimento_realizado(id: int, cod: str, conn: Connection = Depends(get_db)):
-    result = await atendimento_repo.delete_procedimento(conn, id, cod)
+async def delete_procedimento_realizado(id: int, cod: str, session: AsyncSession = Depends(get_session)):
+    result = await atendimento_repo.delete_procedimento(session, id, cod)
     if result == "not_found":
         raise HTTPException(status_code=404, detail=f"Procedimento {cod} não encontrado no atendimento {id}.")
     if result == "faturado":

@@ -1,105 +1,146 @@
-from psycopg import Connection
-from psycopg.rows import dict_row
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload, lazyload, selectinload
 
+from app.models.atendimento import Atendimento
+from app.models.procedimento import Procedimento
+from app.models.procedimento_realizado import ProcedimentoRealizado
 from app.repositories import paciente as paciente_repo
 from app.schemas.atendimento import AtendimentoCreate
 
 
-async def list_all(conn: Connection) -> list[dict]:
-    async with conn.cursor(row_factory=dict_row) as cur:
-        await cur.execute(
-            """
-            SELECT a.id_atendimento, a.data_hora, a.duracao_minutos, a.id_paciente, p.nome AS nome_paciente,
-                   a.id_unidade, u.nome AS nome_unidade
-            FROM atendimento a
-            JOIN pessoa p ON p.id_pessoa = a.id_paciente
-            JOIN unidade u ON u.id_unidade = a.id_unidade
-            ORDER BY a.data_hora DESC
-            """
-        )
-        return await cur.fetchall()
+async def list_all(session: AsyncSession) -> list[dict]:
+    """Eager loading explícito (DSL): `joinedload` para `paciente`/`unidade` traz tudo em
+    uma única consulta com `JOIN`. É redundante com o `lazy="joined"` já configurado em
+    `app/models/atendimento.py`, mas deixamos explícito aqui para documentar a estratégia
+    no ponto de uso, em contraste direto com `list_by_paciente` abaixo (lazy de
+    propósito)."""
+    stmt = (
+        select(Atendimento)
+        .options(joinedload(Atendimento.paciente), joinedload(Atendimento.unidade))
+        .order_by(Atendimento.data_hora.desc())
+    )
+    result = await session.execute(stmt)
+    atendimentos = result.unique().scalars().all()
+    return [
+        {
+            "id_atendimento": a.id_atendimento,
+            "data_hora": a.data_hora,
+            "duracao_minutos": a.duracao_minutos,
+            "id_paciente": a.id_paciente,
+            "nome_paciente": a.paciente.nome,
+            "id_unidade": a.id_unidade,
+            "nome_unidade": a.unidade.nome,
+        }
+        for a in atendimentos
+    ]
 
 
-async def create(conn: Connection, data: AtendimentoCreate) -> dict:
-    async with conn.cursor(row_factory=dict_row) as cur:
-        await cur.execute(
-            """
-            INSERT INTO atendimento (data_hora, duracao_minutos, id_paciente, id_residente, id_preceptor, id_unidade)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            RETURNING id_atendimento, data_hora, duracao_minutos, id_paciente, id_residente, id_preceptor, id_unidade
-            """,
-            (
-                data.data_hora,
-                data.duracao_minutos,
-                data.id_paciente,
-                data.id_residente,
-                data.id_preceptor,
-                data.id_unidade,
-            ),
-        )
-        row = await cur.fetchone()
-        await conn.commit()
-        return row
+async def create(session: AsyncSession, data: AtendimentoCreate) -> Atendimento:
+    atendimento = Atendimento(**data.model_dump())
+    async with session.begin():
+        session.add(atendimento)
+        await session.flush()
+    return atendimento
 
 
-async def list_by_paciente(conn: Connection, id_paciente: int) -> list[dict] | None:
-    async with conn.cursor(row_factory=dict_row) as cur:
-        if not await paciente_repo.exists(cur, id_paciente):
-            return None
-        await cur.execute(
-            """
-            SELECT a.id_atendimento, a.data_hora, a.duracao_minutos, a.id_residente, a.id_preceptor,
-                   p_res.nome AS nome_residente, p_prec.nome AS nome_preceptor, u.nome AS nome_unidade
-            FROM atendimento a
-            LEFT JOIN pessoa p_res ON p_res.id_pessoa = a.id_residente
-            LEFT JOIN pessoa p_prec ON p_prec.id_pessoa = a.id_preceptor
-            JOIN unidade u ON u.id_unidade = a.id_unidade
-            WHERE a.id_paciente = %s
-            ORDER BY a.data_hora ASC
-            """,
-            (id_paciente,),
-        )
-        return await cur.fetchall()
-
-
-async def list_procedimentos(conn: Connection, id_atendimento: int) -> list[dict] | None:
-    async with conn.cursor(row_factory=dict_row) as cur:
-        await cur.execute("SELECT 1 FROM atendimento WHERE id_atendimento = %s", (id_atendimento,))
-        if not await cur.fetchone():
-            return None
-        await cur.execute(
-            """
-            SELECT p.codigo, p.nome AS nome_procedimento, pr.quantidade, pr.tempo_real_minutos, pr.faturado
-            FROM procedimento_realizado pr
-            JOIN procedimento p ON p.id_procedimento = pr.id_procedimento
-            WHERE pr.id_atendimento = %s
-            ORDER BY p.nome ASC
-            """,
-            (id_atendimento,),
-        )
-        return await cur.fetchall()
-
-
-async def delete_procedimento(conn: Connection, id_atendimento: int, cod: str) -> str | None:
-    """Returns None on success, 'not_found', or 'faturado'."""
-    async with conn.cursor(row_factory=dict_row) as cur:
-        await cur.execute(
-            """
-            SELECT pr.faturado, pr.id_procedimento
-            FROM procedimento_realizado pr
-            JOIN procedimento p ON p.id_procedimento = pr.id_procedimento
-            WHERE pr.id_atendimento = %s AND p.codigo = %s
-            """,
-            (id_atendimento, cod),
-        )
-        row = await cur.fetchone()
-        if not row:
-            return "not_found"
-        if row["faturado"]:
-            return "faturado"
-        await cur.execute(
-            "DELETE FROM procedimento_realizado WHERE id_atendimento = %s AND id_procedimento = %s",
-            (id_atendimento, row["id_procedimento"]),
-        )
-        await conn.commit()
+async def list_by_paciente(session: AsyncSession, id_paciente: int) -> list[dict] | None:
+    """Endpoint mantido **lazy de propósito** (contrariando o `lazy="joined"` padrão do
+    modelo) para servir de material do vídeo da entrega: `lazyload()` abaixo desliga o
+    eager loading de `residente`/`preceptor`/`unidade` para ESTA consulta específica, então
+    o `await a.awaitable_attrs.residente` (etc.) dentro do loop dispara uma consulta extra
+    POR atendimento — o N+1 clássico, visível no log de SQL com `SQLALCHEMY_ECHO=1`.
+    Comparar com `list_all`/`list_procedimentos`, que carregam eager de propósito."""
+    if not await paciente_repo.exists(session, id_paciente):
         return None
+
+    stmt = (
+        select(Atendimento)
+        .where(Atendimento.id_paciente == id_paciente)
+        .options(
+            lazyload(Atendimento.residente),
+            lazyload(Atendimento.preceptor),
+            lazyload(Atendimento.unidade),
+        )
+        .order_by(Atendimento.data_hora.asc())
+    )
+    result = await session.execute(stmt)
+    atendimentos = result.scalars().all()
+
+    rows = []
+    for a in atendimentos:
+        # Cada await abaixo é uma consulta lazy separada (N+1 intencional; ver docstring).
+        residente = await a.awaitable_attrs.residente
+        preceptor = await a.awaitable_attrs.preceptor
+        unidade = await a.awaitable_attrs.unidade
+        rows.append(
+            {
+                "id_atendimento": a.id_atendimento,
+                "data_hora": a.data_hora,
+                "duracao_minutos": a.duracao_minutos,
+                "id_residente": a.id_residente,
+                "id_preceptor": a.id_preceptor,
+                "nome_residente": residente.nome,
+                "nome_preceptor": preceptor.nome,
+                "nome_unidade": unidade.nome,
+            }
+        )
+    return rows
+
+
+async def list_procedimentos(session: AsyncSession, id_atendimento: int) -> list[dict] | None:
+    """`selectinload` explícito para `procedimentos_realizados`: uma segunda consulta em
+    lote (`WHERE id_atendimento IN (...)`) traz todas as realizações de uma vez, em vez de
+    uma consulta por procedimento — é o caso pedido pela issue como demonstração de eager
+    loading via `selectinload`. `ProcedimentoRealizado.procedimento` já é `lazy="joined"`
+    no modelo, então o `nome`/`codigo` do procedimento vem junto na mesma consulta
+    selectin, sem N+1 adicional."""
+    stmt = (
+        select(Atendimento)
+        .where(Atendimento.id_atendimento == id_atendimento)
+        .options(selectinload(Atendimento.procedimentos_realizados))
+    )
+    result = await session.execute(stmt)
+    atendimento = result.scalar_one_or_none()
+    if atendimento is None:
+        return None
+
+    realizados = sorted(
+        atendimento.procedimentos_realizados, key=lambda pr: pr.procedimento.nome
+    )
+    return [
+        {
+            "codigo": pr.procedimento.codigo,
+            "nome_procedimento": pr.procedimento.nome,
+            "quantidade": pr.quantidade,
+            "tempo_real_minutos": pr.tempo_real_minutos,
+            "faturado": pr.faturado,
+        }
+        for pr in realizados
+    ]
+
+
+async def delete_procedimento(
+    session: AsyncSession, id_atendimento: int, cod: str
+) -> str | None:
+    """Returns None on success, 'not_found', or 'faturado'."""
+    async with session.begin():
+        stmt = (
+            select(ProcedimentoRealizado)
+            .join(
+                Procedimento,
+                Procedimento.id_procedimento == ProcedimentoRealizado.id_procedimento,
+            )
+            .where(
+                ProcedimentoRealizado.id_atendimento == id_atendimento,
+                Procedimento.codigo == cod,
+            )
+        )
+        result = await session.execute(stmt)
+        procedimento_realizado = result.scalar_one_or_none()
+        if procedimento_realizado is None:
+            return "not_found"
+        if procedimento_realizado.faturado:
+            return "faturado"
+        await session.delete(procedimento_realizado)
+    return None
