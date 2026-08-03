@@ -12,11 +12,24 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { api } from "@/lib/api"
+import { api, useApiList } from "@/lib/api"
 
 type PacienteOption = { id_pessoa: number; nome: string }
 type ProfissionalOption = { id_profissional: number; nome: string }
 type UnidadeOption = { id_unidade: number; nome: string }
+type CatalogOption = {
+  id_procedimento: number
+  codigo: string
+  nome: string
+  tempo_medio_minutos: number
+  nivel_risco: string
+}
+
+function riscoClass(risco: string) {
+  if (risco === "ALTO") return "text-destructive font-medium"
+  if (risco === "MEDIO") return "text-amber-700 font-medium"
+  return "text-muted-foreground"
+}
 
 type ProcedimentoDraft = {
   key: number
@@ -69,6 +82,13 @@ export function AtendimentoCompletoSection({
   const [nextKey, setNextKey] = useState(1)
   const [procedimentos, setProcedimentos] = useState<ProcedimentoDraft[]>([emptyProcedimento(0)])
   const [result, setResult] = useState<SubmitResult>({ kind: "idle" })
+  const {
+    data: catalogo,
+    loading: catalogoLoading,
+    reload: reloadCatalogo,
+  } = useApiList<CatalogOption>("/procedimentos")
+
+  const catalogoPorId = new Map(catalogo.map((item) => [String(item.id_procedimento), item]))
 
   function addProcedimento() {
     setProcedimentos((current) => [...current, emptyProcedimento(nextKey)])
@@ -135,6 +155,7 @@ export function AtendimentoCompletoSection({
       setResult({ kind: "success", idAtendimento: data.id_atendimento })
       resetForm()
       onCreated?.()
+      await reloadCatalogo()
     } catch {
       setResult({ kind: "error", detail: "Erro de rede ao registrar o atendimento." })
     }
@@ -227,23 +248,43 @@ export function AtendimentoCompletoSection({
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Use os códigos cadastrados no seed (id_procedimento 1 a 5). Um id inexistente ou uma
-              quantidade/tempo fora do permitido dispara o rollback de toda a operação.
+              Selecione um procedimento do catálogo — o nível de risco vem do cadastro. Para criar
+              um novo (ex.: ALTO), use Cadastros → Procedimentos.
             </p>
             <div className="grid gap-3">
-              {procedimentos.map((item, index) => (
+              {procedimentos.map((item, index) => {
+                const selecionado = catalogoPorId.get(item.id_procedimento)
+                return (
                 <div
                   key={item.key}
                   className="grid gap-3 rounded-lg border p-3 sm:grid-cols-5 sm:items-start"
                 >
-                  <Field
-                    label={`Procedimento #${index + 1} — id`}
-                    type="number"
-                    min="1"
-                    value={item.id_procedimento}
-                    onChange={(value) => updateProcedimento(item.key, { id_procedimento: value })}
-                    required
-                  />
+                  <div className="grid gap-1 sm:col-span-2">
+                    <SelectField
+                      label={`Procedimento #${index + 1}`}
+                      value={item.id_procedimento}
+                      onChange={(value) => updateProcedimento(item.key, { id_procedimento: value })}
+                      required
+                      disabled={catalogoLoading || catalogo.length === 0}
+                      placeholder={
+                        catalogoLoading
+                          ? "Carregando catálogo..."
+                          : catalogo.length
+                            ? "Selecione o procedimento"
+                            : "Nenhum procedimento cadastrado"
+                      }
+                      options={catalogo.map((proc) => ({
+                        value: String(proc.id_procedimento),
+                        label: `${proc.codigo} — ${proc.nome} (${proc.nivel_risco})`,
+                      }))}
+                    />
+                    {selecionado && (
+                      <p className={`text-xs ${riscoClass(selecionado.nivel_risco)}`}>
+                        Risco: {selecionado.nivel_risco} · tempo cadastrado:{" "}
+                        {selecionado.tempo_medio_minutos} min
+                      </p>
+                    )}
+                  </div>
                   <Field
                     label="Quantidade"
                     type="number"
@@ -286,7 +327,8 @@ export function AtendimentoCompletoSection({
                     </Button>
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
 

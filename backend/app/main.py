@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Sistema de Gestão Hospitalar Dra. Yuska - API",
-    description="API da Etapa 1 para gerenciamento de atendimentos, pacientes, procedimentos e relatórios analíticos utilizando PostgreSQL com SQL puro.",
+    description="API para gerenciamento de atendimentos, pacientes, procedimentos e relatórios analíticos.",
     version="1.0.0",
     lifespan=lifespan
 )

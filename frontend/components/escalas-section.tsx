@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react"
 import { AlertTriangle, CalendarClock, CheckCircle2, Loader2, ShieldAlert } from "lucide-react"
 
-import { SelectField } from "@/components/form-fields"
+import { Field, SelectField } from "@/components/form-fields"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -56,6 +56,13 @@ type ReajusteState =
   | { kind: "conflict"; detail: string }
   | { kind: "error"; detail: string }
 
+type DemoEscalaState =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "conflict"; detail: string }
+  | { kind: "success" }
+  | { kind: "error"; detail: string }
+
 export function EscalasSection() {
   const { data, loading, error, reload } = useApiList<EscalaRow>("/escalas")
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -63,6 +70,12 @@ export function EscalasSection() {
   const [turnoDestino, setTurnoDestino] = useState("")
   const [state, setState] = useState<ReajusteState>({ kind: "idle" })
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [demoUnidade, setDemoUnidade] = useState("2")
+  const [demoResidente, setDemoResidente] = useState("11")
+  const [demoPreceptor, setDemoPreceptor] = useState("8")
+  const [demoDia, setDemoDia] = useState("SEG")
+  const [demoTurno, setDemoTurno] = useState("MANHA")
+  const [demoState, setDemoState] = useState<DemoEscalaState>({ kind: "idle" })
 
   function openReajuste(row: EscalaRow) {
     setExpandedId(row.id_escala)
@@ -108,6 +121,39 @@ export function EscalasSection() {
       await reload()
     } catch {
       setState({ kind: "error", detail: "Erro de rede ao reajustar a escala." })
+    }
+  }
+
+  async function testarSobreposicao() {
+    setDemoState({ kind: "loading" })
+    try {
+      const response = await fetch(`${api}/escalas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id_unidade: Number(demoUnidade),
+          dia_semana: demoDia,
+          turno: demoTurno,
+          id_residente: Number(demoResidente),
+          id_preceptor: Number(demoPreceptor),
+        }),
+      })
+      const payload = await response.json().catch(() => null)
+      if (response.status === 409) {
+        setDemoState({ kind: "conflict", detail: payload?.detail ?? "Conflito de escala." })
+        return
+      }
+      if (!response.ok) {
+        setDemoState({
+          kind: "error",
+          detail: payload?.detail ?? "Não foi possível cadastrar a escala.",
+        })
+        return
+      }
+      setDemoState({ kind: "success" })
+      await reload()
+    } catch {
+      setDemoState({ kind: "error", detail: "Erro de rede ao cadastrar escala." })
     }
   }
 
@@ -237,6 +283,34 @@ export function EscalasSection() {
             </Table>
           </div>
         )}
+
+        <div className="rounded-lg border border-dashed p-4">
+          <p className="mb-3 text-sm font-medium">Demonstrar trg_check_sobreposicao_escala</p>
+          <p className="mb-3 text-sm text-muted-foreground">
+            Felipe (11) já está em SEG/MANHA na unidade 1. Tente cadastrá-lo na unidade 2 no mesmo
+            dia/turno — a trigger deve recusar (HTTP 409).
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <Field label="Unidade (id)" value={demoUnidade} onChange={setDemoUnidade} />
+            <Field label="Residente (id)" value={demoResidente} onChange={setDemoResidente} />
+            <Field label="Preceptor (id)" value={demoPreceptor} onChange={setDemoPreceptor} />
+            <SelectField label="Dia" value={demoDia} onChange={setDemoDia} options={DIAS} />
+            <SelectField label="Turno" value={demoTurno} onChange={setDemoTurno} options={TURNOS} />
+          </div>
+          <Button className="mt-3" variant="outline" onClick={() => void testarSobreposicao()}>
+            {demoState.kind === "loading" && <Loader2 className="size-4 animate-spin" />}
+            Tentar cadastrar escala
+          </Button>
+          {demoState.kind === "conflict" && (
+            <p className="mt-2 text-sm text-destructive">{demoState.detail}</p>
+          )}
+          {demoState.kind === "success" && (
+            <p className="mt-2 text-sm text-emerald-700">Escala cadastrada — não havia conflito.</p>
+          )}
+          {demoState.kind === "error" && (
+            <p className="mt-2 text-sm text-destructive">{demoState.detail}</p>
+          )}
+        </div>
       </CardContent>
     </Card>
   )

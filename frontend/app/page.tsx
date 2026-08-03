@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   Loader2,
   Search,
-  Trash2,
 } from "lucide-react"
 
 import { AppSidebar } from "@/components/app-sidebar"
@@ -27,6 +26,12 @@ import {
   type ResidenteOption,
 } from "@/components/cadastro-sections"
 import { EscalasSection } from "@/components/escalas-section"
+import {
+  ConsultasAvancadasSection,
+  MediaProcedimentosSection,
+  TempoMedioEsperaSection,
+} from "@/components/etapa2-sections"
+import { ProcedimentosSection } from "@/components/procedimentos-section"
 import { Field, SelectField } from "@/components/form-fields"
 import { Button } from "@/components/ui/button"
 import {
@@ -114,7 +119,8 @@ const VIEWS = {
   procedimentos: {
     group: "Cadastros",
     title: "Procedimentos",
-    description: "Remova procedimentos realizados que ainda não foram faturados.",
+    description:
+      "Cadastre procedimentos no catálogo (com nível de risco) ou remova realizações ainda não faturadas.",
   },
   relatorios: {
     group: "Relatórios",
@@ -152,9 +158,39 @@ const VIEWS = {
     title: "Auditoria",
     description: "Histórico de alterações em atendimentos, com o diff entre versões.",
   },
+  "tempo-medio-espera": {
+    group: "Análises avançadas",
+    title: "Tempo médio de espera",
+    description:
+      "Procedure sp_calcular_tempo_medio_espera — média, por unidade, entre chegada e primeiro procedimento.",
+  },
+  "consultas-avancadas": {
+    group: "Análises avançadas",
+    title: "Consultas avançadas",
+    description: "Três consultas ORM do backend: flamenguistas, último atendimento e percentual de risco ALTO.",
+  },
+  "media-procedimentos": {
+    group: "Análises avançadas",
+    title: "Média por procedimento",
+    description:
+      "Catálogo com media_tempo_procedimento mantida pela trigger trg_atualiza_media_procedimentos.",
+  },
 } as const
 
 type ViewId = keyof typeof VIEWS
+
+const SELF_CONTAINED_VIEWS = new Set<ViewId>([
+  "atendimento-completo",
+  "escalas",
+  "pacientes-internados",
+  "residentes-sem-supervisor",
+  "estatisticas-mensais",
+  "auditoria",
+  "tempo-medio-espera",
+  "consultas-avancadas",
+  "media-procedimentos",
+  "procedimentos",
+])
 
 function StatusPill({ status, message }: { status: Status; message: string }) {
   const styles: Record<Status, string> = {
@@ -585,7 +621,9 @@ export default function Home() {
                   <CalendarPlus className="size-4 text-primary" /> Novo atendimento
                 </CardTitle>
                 <CardDescription>
-                  Escolha quem participou do atendimento e em qual unidade ele ocorreu.
+                  Escolha quem participou do atendimento e em qual unidade ele ocorreu. Após cadastrar,
+                  abra <strong>Auditoria</strong> no menu para ver o registro da trigger{" "}
+                  <code>trg_audita_atendimento</code>.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -803,61 +841,20 @@ export default function Home() {
           )}
 
           {view === "procedimentos" && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Trash2 className="size-4 text-destructive" /> Remover procedimento
-                </CardTitle>
-                <CardDescription>
-                  Procedimentos já faturados não podem ser removidos.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-4 sm:grid-cols-2">
-                <SelectField
-                  label="Atendimento"
-                  value={attendanceId}
-                  onChange={selectAttendance}
-                  disabled={!catalogReady}
-                  placeholder="Selecione o atendimento"
-                  options={atendimentos.map((item) => ({
-                    value: String(item.id_atendimento),
-                    label: `#${item.id_atendimento} — ${item.nome_paciente} — ${formatDateTime(item.data_hora)}`,
-                  }))}
-                />
-                <SelectField
-                  label="Procedimento"
-                  value={procedureCode}
-                  onChange={setProcedureCode}
-                  disabled={!attendanceId || procedimentosAtendimento.length === 0}
-                  placeholder={
-                    attendanceId
-                      ? procedimentosAtendimento.length
-                        ? "Selecione o procedimento"
-                        : "Nenhum procedimento neste atendimento"
-                      : "Selecione um atendimento primeiro"
-                  }
-                  options={procedimentosAtendimento.map((item) => ({
-                    value: item.codigo,
-                    label: item.faturado
-                      ? `${item.codigo} — ${item.nome_procedimento} (faturado)`
-                      : `${item.codigo} — ${item.nome_procedimento}`,
-                    disabled: item.faturado,
-                  }))}
-                />
-                <Button
-                  variant="destructive"
-                  className="sm:col-span-2 sm:w-fit"
-                  disabled={!attendanceId || !procedureCode}
-                  onClick={() =>
-                    request(`/atendimentos/${attendanceId}/procedimentos/${procedureCode}`, {
-                      method: "DELETE",
-                    })
-                  }
-                >
-                  Remover procedimento
-                </Button>
-              </CardContent>
-            </Card>
+            <ProcedimentosSection
+              catalogReady={catalogReady}
+              atendimentos={atendimentos}
+              attendanceId={attendanceId}
+              procedureCode={procedureCode}
+              procedimentosAtendimento={procedimentosAtendimento}
+              onSelectAttendance={selectAttendance}
+              onSelectProcedureCode={setProcedureCode}
+              onRemove={() =>
+                request(`/atendimentos/${attendanceId}/procedimentos/${procedureCode}`, {
+                  method: "DELETE",
+                })
+              }
+            />
           )}
 
           {view === "atendimento-completo" && (
@@ -880,6 +877,12 @@ export default function Home() {
           {view === "estatisticas-mensais" && <EstatisticasMensaisSection />}
 
           {view === "auditoria" && <AuditoriaSection />}
+
+          {view === "tempo-medio-espera" && <TempoMedioEsperaSection />}
+
+          {view === "consultas-avancadas" && <ConsultasAvancadasSection />}
+
+          {view === "media-procedimentos" && <MediaProcedimentosSection />}
 
           {view === "relatorios" && (
             <Card>
@@ -934,15 +937,17 @@ export default function Home() {
             </Card>
           )}
 
-          <Card>
-            <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Resultado</CardTitle>
-              <StatusPill status={status} message={message} />
-            </CardHeader>
-            <CardContent>
-              <Results rows={result} />
-            </CardContent>
-          </Card>
+          {!SELF_CONTAINED_VIEWS.has(view) && (
+            <Card>
+              <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Resultado</CardTitle>
+                <StatusPill status={status} message={message} />
+              </CardHeader>
+              <CardContent>
+                <Results rows={result} />
+              </CardContent>
+            </Card>
+          )}
         </div>
       </SidebarInset>
     </SidebarProvider>

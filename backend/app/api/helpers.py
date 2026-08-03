@@ -15,4 +15,6 @@ def handle_unique_violation(err: IntegrityError) -> None:
         raise HTTPException(status_code=400, detail="CPF já cadastrado para outra pessoa.")
     if constraint == "uq_profissional_crm":
         raise HTTPException(status_code=400, detail="CRM já cadastrado para outro profissional.")
+    if constraint == "uq_procedimento_codigo":
+        raise HTTPException(status_code=400, detail="Código de procedimento já cadastrado.")
     raise HTTPException(status_code=400, detail="Registro duplicado violando uma restrição de unicidade.")

@@ -18,6 +18,14 @@ class EscalaListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class EscalaCreateRequest(BaseModel):
+    id_unidade: int
+    dia_semana: str = Field(..., pattern=_DIAS)
+    turno: str = Field(..., pattern=_TURNOS)
+    id_residente: int
+    id_preceptor: int
+
+
 class EscalaReajusteRequest(BaseModel):
     """Corpo de `POST /escalas/reajustar`, repassado direto para `sp_reajustar_escala`
     (db/02_procedures.sql, issue #4)."""

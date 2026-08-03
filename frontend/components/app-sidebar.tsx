@@ -7,13 +7,15 @@ import {
   BedDouble,
   CalendarClock,
   CalendarPlus,
+  Clock3,
+  FlaskConical,
   GraduationCap,
   History,
   ListPlus,
+  PlusCircle,
   Search,
   ShieldAlert,
   Stethoscope,
-  Trash2,
   UserCog,
   Users,
 } from "lucide-react"
@@ -40,7 +42,7 @@ export const cadastrosItems: NavItem[] = [
   { id: "pacientes", title: "Pacientes", icon: <Users /> },
   { id: "residentes", title: "Residentes", icon: <GraduationCap /> },
   { id: "preceptores", title: "Preceptores", icon: <UserCog /> },
-  { id: "procedimentos", title: "Procedimentos", icon: <Trash2 /> },
+  { id: "procedimentos", title: "Procedimentos", icon: <PlusCircle /> },
 ]
 
 export const escalasItems: NavItem[] = [
@@ -55,6 +57,12 @@ export const visoesItems: NavItem[] = [
 
 export const auditoriaItems: NavItem[] = [
   { id: "auditoria", title: "Auditoria", icon: <History /> },
+]
+
+export const analisesItems: NavItem[] = [
+  { id: "tempo-medio-espera", title: "Tempo médio de espera", icon: <Clock3 /> },
+  { id: "consultas-avancadas", title: "Consultas avançadas", icon: <BarChart3 /> },
+  { id: "media-procedimentos", title: "Média por procedimento", icon: <FlaskConical /> },
 ]
 
 export const relatoriosItems: NavItem[] = [
@@ -116,6 +124,12 @@ export function AppSidebar({
         <NavMain
           label="Auditoria"
           items={auditoriaItems}
+          activeId={activeId}
+          onSelect={onSelect}
+        />
+        <NavMain
+          label="Análises avançadas"
+          items={analisesItems}
           activeId={activeId}
           onSelect={onSelect}
         />

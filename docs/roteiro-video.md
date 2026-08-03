@@ -4,6 +4,28 @@ Duração-alvo: **8 minutos**. Blocos com tempo alocado por peso de nota (Etapa 
 em triggers e na migração para ORM, que somam três issues cada). Cada bloco diz o que
 abrir, o que clicar/digitar e o que apontar na tela.
 
+## Roteiro alternativo — 100% pela UI
+
+Use este roteiro se quiser demonstrar **tudo pelo frontend** (`http://localhost:3000`), sem
+`psql` na gravação.
+
+| Requisito | Onde na UI | O que fazer |
+|-----------|------------|-------------|
+| `sp_registrar_atendimento_completo` | Atendimentos → Atendimento completo | Cadastrar com procedimento inválido (409/400), depois com IDs válidos |
+| `sp_reajustar_escala` | Escalas | Reajustar para dia/turno ocupado (409), depois destino livre |
+| `trg_check_sobreposicao_escala` | Escalas → bloco "Demonstrar trg_check_sobreposicao_escala" | Residente 11, unidade 2, SEG/MANHA → botão "Tentar cadastrar escala" (409) |
+| `trg_audita_atendimento` | Atendimentos → Novo atendimento, depois Auditoria | Cadastrar atendimento; abrir Auditoria e apontar nova linha |
+| `trg_atualiza_media_procedimentos` | Atendimento completo, depois Análises avançadas → Média por procedimento | Registrar procedimentos; "Atualizar catálogo" e apontar coluna média observada |
+| `sp_calcular_tempo_medio_espera` | Análises avançadas → Tempo médio de espera | Tabela carrega ao abrir a tela |
+| 3 views SQL | Visões (3 telas) | Pacientes internados, Residentes sem supervisor, Estatísticas mensais |
+| Consultas ORM avançadas | Análises avançadas → Consultas avançadas | Três cards carregam ao abrir |
+| Relatórios Etapa 1 | Relatórios → Painel analítico | Botões de ranking, plantões, etc. |
+| ORM / N+1 (opcional) | Terminal com `SQLALCHEMY_ECHO=1` + Consultas → Ver atendimentos | Só se quiser mostrar log de SQL no bloco ORM |
+
+**Ordem sugerida (≈6 min só na UI):** Atendimento completo → Escalas (reajuste + trigger) →
+Novo atendimento + Auditoria → Análises avançadas (média, tempo, consultas) →
+Visões (3) → Painel analítico.
+
 ## Preparação (antes de gravar, fora do tempo do vídeo)
 
 1. Subir o Postgres com os cinco scripts na ordem (ex.: `docker compose up -d`, ou o

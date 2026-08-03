@@ -2,7 +2,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.escala import Escala
-from app.schemas.escala import EscalaReajusteRequest
+from app.schemas.escala import EscalaCreateRequest, EscalaReajusteRequest
 
 
 async def list_all(session: AsyncSession) -> list[dict]:
@@ -25,6 +25,27 @@ async def list_all(session: AsyncSession) -> list[dict]:
         }
         for e in escalas
     ]
+
+
+async def create(session: AsyncSession, data: EscalaCreateRequest) -> dict:
+    async with session.begin():
+        escala = Escala(**data.model_dump())
+        session.add(escala)
+        await session.flush()
+        id_escala = escala.id_escala
+    result = await session.execute(select(Escala).where(Escala.id_escala == id_escala))
+    escala = result.unique().scalar_one()
+    return {
+        "id_escala": escala.id_escala,
+        "id_unidade": escala.id_unidade,
+        "nome_unidade": escala.unidade.nome,
+        "dia_semana": escala.dia_semana,
+        "turno": escala.turno,
+        "id_residente": escala.id_residente,
+        "nome_residente": escala.residente.nome,
+        "id_preceptor": escala.id_preceptor,
+        "nome_preceptor": escala.preceptor.nome,
+    }
 
 
 async def reajustar(session: AsyncSession, data: EscalaReajusteRequest) -> None:
