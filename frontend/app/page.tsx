@@ -130,7 +130,7 @@ const VIEWS = {
   escalas: {
     group: "Escalas",
     title: "Escalas",
-    description: "Ajuste escalas de residentes sem supervisão de um preceptor doutor.",
+    description: "Consulte a grade semanal de plantões e reajuste o dia/turno de um residente.",
   },
   "pacientes-internados": {
     group: "Visões",

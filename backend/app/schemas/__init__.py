@@ -20,7 +20,7 @@ from app.schemas.atendimento import (
 )
 from app.schemas.auditoria import AuditoriaAtendimentoResponse
 from app.schemas.common import PessoaFields, ProfissionalFields
-from app.schemas.escala import EscalaReajusteRequest
+from app.schemas.escala import EscalaListItem, EscalaReajusteRequest
 from app.schemas.paciente import PacienteCreate, PacienteListItem, PacienteResponse, PacienteUpdate
 from app.schemas.preceptor import PreceptorCreate, PreceptorListItem, PreceptorResponse, PreceptorUpdate
 from app.schemas.residente import (
@@ -47,6 +47,7 @@ __all__ = [
     "AtendimentoProcedimentoResponse",
     "AtendimentoResponse",
     "AuditoriaAtendimentoResponse",
+    "EscalaListItem",
     "EscalaReajusteRequest",
     "EstatisticaMensalResponse",
     "PacienteCreate",
