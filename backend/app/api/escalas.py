@@ -1,3 +1,5 @@
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 from psycopg.errors import RaiseException
 from sqlalchemy.exc import DBAPIError
@@ -5,9 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
 from app.repositories import escala as escala_repo
-from app.schemas import EscalaReajusteRequest
+from app.schemas import EscalaListItem, EscalaReajusteRequest
 
 router = APIRouter(prefix="/escalas", tags=["Escalas"])
+
+
+@router.get("", response_model=List[EscalaListItem], summary="Lista a grade semanal de escalas")
+async def list_escalas(session: AsyncSession = Depends(get_session)):
+    return await escala_repo.list_all(session)
 
 
 @router.post(
