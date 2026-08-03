@@ -120,6 +120,20 @@ export function AtendimentoCompletoSection({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
+    const ids = procedimentos.map((item) => item.id_procedimento).filter(Boolean)
+    const duplicado = ids.find((id, index) => ids.indexOf(id) !== index)
+    if (duplicado) {
+      const proc = catalogoPorId.get(duplicado)
+      setResult({
+        kind: "error",
+        detail: proc
+          ? `${proc.codigo} aparece mais de uma vez. Cada procedimento só pode ser registrado uma vez por atendimento — use atendimentos separados para medir tempos diferentes.`
+          : "O mesmo procedimento foi selecionado mais de uma vez neste atendimento.",
+      })
+      return
+    }
+
     setResult({ kind: "loading" })
     try {
       const response = await fetch(`${api}/atendimentos/completo`, {

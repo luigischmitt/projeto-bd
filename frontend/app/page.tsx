@@ -141,7 +141,7 @@ const VIEWS = {
   "pacientes-internados": {
     group: "Visões",
     title: "Pacientes internados",
-    description: "Pacientes cuja internação mais recente ainda está em curso.",
+    description: "Interne pacientes, registre altas e consulte quem está hospitalizado no momento.",
   },
   "residentes-sem-supervisor": {
     group: "Visões",

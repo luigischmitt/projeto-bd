@@ -5,6 +5,7 @@ from app.api import (
     atendimentos,
     auditoria,
     escalas,
+    internacoes,
     pacientes,
     preceptores,
     procedimentos,
@@ -23,4 +24,5 @@ router.include_router(procedimentos.router)
 router.include_router(analytics.router)
 router.include_router(escalas.router)
 router.include_router(views.router)
+router.include_router(internacoes.router)
 router.include_router(auditoria.router)

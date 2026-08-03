@@ -167,3 +167,35 @@ def test_media_do_procedimento_e_recalculada_apos_insercao(conn):
 
     assert media_depois != media_antes
     assert media_depois == media_esperada
+
+
+def test_media_do_procedimento_e_recalculada_apos_delete(conn):
+    cur = conn.execute(
+        "INSERT INTO atendimento (data_hora, duracao_minutos, id_paciente, id_residente, id_preceptor, id_unidade) "
+        "VALUES ('2026-07-03 09:00:00', 15, 2, 12, 6, 1) RETURNING id_atendimento"
+    )
+    id_atendimento = cur.fetchone()[0]
+
+    conn.execute(
+        "INSERT INTO procedimento_realizado "
+        "(id_atendimento, id_procedimento, quantidade, tempo_real_minutos, data_hora_inicio) "
+        "VALUES (%s, 1, 1, 99, '2026-07-03 09:10:00')",
+        (id_atendimento,),
+    )
+
+    conn.execute(
+        "DELETE FROM procedimento_realizado WHERE id_atendimento = %s AND id_procedimento = 1",
+        (id_atendimento,),
+    )
+
+    cur = conn.execute(
+        "SELECT media_tempo_procedimento FROM procedimento WHERE id_procedimento = 1"
+    )
+    media_depois = cur.fetchone()[0]
+
+    cur = conn.execute(
+        "SELECT ROUND(AVG(tempo_real_minutos), 2) FROM procedimento_realizado WHERE id_procedimento = 1"
+    )
+    media_esperada = cur.fetchone()[0]
+
+    assert media_depois == media_esperada

@@ -74,20 +74,26 @@ CREATE TRIGGER trg_audita_atendimento
 -- =============================================================================
 CREATE OR REPLACE FUNCTION fn_atualiza_media_procedimentos()
 RETURNS TRIGGER AS $$
+DECLARE
+    v_id_procedimento INTEGER;
 BEGIN
+    v_id_procedimento := COALESCE(NEW.id_procedimento, OLD.id_procedimento);
+
     UPDATE procedimento
     SET media_tempo_procedimento = (
         SELECT AVG(tempo_real_minutos)
         FROM procedimento_realizado
-        WHERE id_procedimento = NEW.id_procedimento
+        WHERE id_procedimento = v_id_procedimento
     )
-    WHERE id_procedimento = NEW.id_procedimento;
+    WHERE id_procedimento = v_id_procedimento;
 
-    RETURN NEW;
+    RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_atualiza_media_procedimentos ON procedimento_realizado;
+
 CREATE TRIGGER trg_atualiza_media_procedimentos
-    AFTER INSERT ON procedimento_realizado
+    AFTER INSERT OR UPDATE OR DELETE ON procedimento_realizado
     FOR EACH ROW
     EXECUTE FUNCTION fn_atualiza_media_procedimentos();

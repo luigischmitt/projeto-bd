@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react"
 import { AlertTriangle, CalendarClock, CheckCircle2, Loader2, ShieldAlert } from "lucide-react"
 
-import { Field, SelectField } from "@/components/form-fields"
+import { SelectField } from "@/components/form-fields"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -63,8 +63,14 @@ type DemoEscalaState =
   | { kind: "success" }
   | { kind: "error"; detail: string }
 
+type UnidadeOption = { id_unidade: number; nome: string }
+type ProfissionalOption = { id_profissional: number; nome: string }
+
 export function EscalasSection() {
   const { data, loading, error, reload } = useApiList<EscalaRow>("/escalas")
+  const { data: unidades } = useApiList<UnidadeOption>("/unidades")
+  const { data: residentes } = useApiList<ProfissionalOption>("/residentes")
+  const { data: preceptores } = useApiList<ProfissionalOption>("/preceptores")
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [diaDestino, setDiaDestino] = useState("")
   const [turnoDestino, setTurnoDestino] = useState("")
@@ -287,13 +293,40 @@ export function EscalasSection() {
         <div className="rounded-lg border border-dashed p-4">
           <p className="mb-3 text-sm font-medium">Demonstrar trg_check_sobreposicao_escala</p>
           <p className="mb-3 text-sm text-muted-foreground">
-            Felipe (11) já está em SEG/MANHA na unidade 1. Tente cadastrá-lo na unidade 2 no mesmo
-            dia/turno — a trigger deve recusar (HTTP 409).
+            Felipe Residente já está em SEG/MANHA na Enfermaria Norte. Tente cadastrá-lo na UTI
+            Central no mesmo dia/turno — a trigger deve recusar (HTTP 409).
           </p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <Field label="Unidade (id)" value={demoUnidade} onChange={setDemoUnidade} />
-            <Field label="Residente (id)" value={demoResidente} onChange={setDemoResidente} />
-            <Field label="Preceptor (id)" value={demoPreceptor} onChange={setDemoPreceptor} />
+            <SelectField
+              label="Unidade"
+              value={demoUnidade}
+              onChange={setDemoUnidade}
+              placeholder="Selecione a unidade"
+              options={unidades.map((item) => ({
+                value: String(item.id_unidade),
+                label: item.nome,
+              }))}
+            />
+            <SelectField
+              label="Residente"
+              value={demoResidente}
+              onChange={setDemoResidente}
+              placeholder="Selecione o residente"
+              options={residentes.map((item) => ({
+                value: String(item.id_profissional),
+                label: item.nome,
+              }))}
+            />
+            <SelectField
+              label="Preceptor"
+              value={demoPreceptor}
+              onChange={setDemoPreceptor}
+              placeholder="Selecione o preceptor"
+              options={preceptores.map((item) => ({
+                value: String(item.id_profissional),
+                label: item.nome,
+              }))}
+            />
             <SelectField label="Dia" value={demoDia} onChange={setDemoDia} options={DIAS} />
             <SelectField label="Turno" value={demoTurno} onChange={setDemoTurno} options={TURNOS} />
           </div>

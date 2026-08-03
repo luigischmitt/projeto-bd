@@ -59,6 +59,8 @@ EXCEPTION
         RAISE EXCEPTION 'Referência inválida ao registrar atendimento (paciente, residente, preceptor, unidade ou procedimento inexistente): %', SQLERRM;
     WHEN check_violation THEN
         RAISE EXCEPTION 'Dado inválido ao registrar atendimento (violação de regra de integridade): %', SQLERRM;
+    WHEN unique_violation THEN
+        RAISE EXCEPTION 'Cada procedimento só pode ser registrado uma vez por atendimento.';
 END;
 $$ LANGUAGE plpgsql;
 

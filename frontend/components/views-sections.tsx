@@ -1,7 +1,18 @@
 "use client"
 
-import { AlertCircle, BarChart3, BedDouble, Loader2, ShieldAlert } from "lucide-react"
+import { FormEvent, useMemo, useState } from "react"
+import {
+  AlertCircle,
+  BarChart3,
+  BedDouble,
+  CheckCircle2,
+  Loader2,
+  LogOut,
+  ShieldAlert,
+} from "lucide-react"
 
+import { Field, SelectField } from "@/components/form-fields"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -17,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { formatDateTime, formatDuration, formatMonth, useApiList } from "@/lib/api"
+import { api, formatDateTime, formatDuration, formatMonth, useApiList } from "@/lib/api"
 
 export type PacienteInternadoRow = {
   id_internacao: number
@@ -90,52 +101,219 @@ function ViewStatus({
 }
 
 export function PacientesInternadosSection() {
-  const { data, loading, error } = useApiList<PacienteInternadoRow>("/views/pacientes-internados")
+  const { data, loading, error, reload } = useApiList<PacienteInternadoRow>(
+    "/views/pacientes-internados"
+  )
+  const { data: pacientes } = useApiList<{ id_pessoa: number; nome: string }>("/pacientes")
+  const { data: unidades } = useApiList<{ id_unidade: number; nome: string }>("/unidades")
+
+  const internadosIds = useMemo(() => new Set(data.map((row) => row.id_paciente)), [data])
+
+  const [idPaciente, setIdPaciente] = useState("")
+  const [idUnidade, setIdUnidade] = useState("")
+  const [dataEntrada, setDataEntrada] = useState("")
+  const [formState, setFormState] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle")
+  const [formMessage, setFormMessage] = useState<string | null>(null)
+  const [altaLoadingId, setAltaLoadingId] = useState<number | null>(null)
+  const [altaError, setAltaError] = useState<string | null>(null)
+
+  async function handleInternar(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setFormState("loading")
+    setFormMessage(null)
+    try {
+      const body: Record<string, unknown> = {
+        id_paciente: Number(idPaciente),
+        id_unidade: Number(idUnidade),
+      }
+      if (dataEntrada) body.data_hora_entrada = dataEntrada
+
+      const response = await fetch(`${api}/internacoes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.detail ?? "Não foi possível registrar a internação.")
+      }
+      setFormState("success")
+      setFormMessage("Internação registrada com sucesso.")
+      setIdPaciente("")
+      setIdUnidade("")
+      setDataEntrada("")
+      await reload()
+    } catch (err) {
+      setFormState("error")
+      setFormMessage(err instanceof Error ? err.message : "Erro inesperado.")
+    }
+  }
+
+  async function handleDarAlta(idInternacao: number, nomePaciente: string) {
+    setAltaLoadingId(idInternacao)
+    setAltaError(null)
+    try {
+      const response = await fetch(`${api}/internacoes/${idInternacao}/alta`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.detail ?? "Não foi possível registrar a alta.")
+      }
+      setFormMessage(`${nomePaciente} recebeu alta hospitalar.`)
+      setFormState("success")
+      await reload()
+    } catch (err) {
+      setAltaError(err instanceof Error ? err.message : "Erro inesperado.")
+    } finally {
+      setAltaLoadingId(null)
+    }
+  }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <BedDouble className="size-4 text-primary" /> Pacientes internados
-        </CardTitle>
-        <CardDescription>
-          Pacientes cuja internação mais recente ainda está em curso (vw_pacientes_internados).
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <ViewStatus
-          loading={loading}
-          error={error}
-          empty={!data.length}
-          loadingLabel="Carregando pacientes internados..."
-          emptyLabel="Nenhum paciente internado no momento."
-        />
-        {!loading && !error && data.length > 0 && (
-          <div className="overflow-x-auto rounded-lg border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Paciente</TableHead>
-                  <TableHead>Unidade</TableHead>
-                  <TableHead>Entrada</TableHead>
-                  <TableHead>Tempo internado</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.map((row) => (
-                  <TableRow key={row.id_internacao}>
-                    <TableCell className="font-medium">{row.nome_paciente}</TableCell>
-                    <TableCell>{row.nome_unidade}</TableCell>
-                    <TableCell>{formatDateTime(row.data_hora_entrada)}</TableCell>
-                    <TableCell>{formatDuration(row.tempo_internado)}</TableCell>
+    <div className="flex flex-col gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BedDouble className="size-4 text-primary" /> Internar paciente
+          </CardTitle>
+          <CardDescription>
+            Registra uma nova internação. Pacientes já internados não podem ser internados
+            novamente até receber alta.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleInternar} className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <SelectField
+              label="Paciente"
+              name="id_paciente"
+              value={idPaciente}
+              onChange={setIdPaciente}
+              required
+              options={pacientes.map((p) => ({
+                value: String(p.id_pessoa),
+                label: p.nome,
+                disabled: internadosIds.has(p.id_pessoa),
+              }))}
+            />
+            <SelectField
+              label="Unidade"
+              name="id_unidade"
+              value={idUnidade}
+              onChange={setIdUnidade}
+              required
+              options={unidades.map((u) => ({
+                value: String(u.id_unidade),
+                label: u.nome,
+              }))}
+            />
+            <Field
+              label="Data e hora de entrada"
+              name="data_hora_entrada"
+              type="datetime-local"
+              value={dataEntrada}
+              onChange={setDataEntrada}
+            />
+            <div className="flex items-end">
+              <Button type="submit" className="w-full" disabled={formState === "loading"}>
+                {formState === "loading" ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" /> Registrando...
+                  </>
+                ) : (
+                  "Internar paciente"
+                )}
+              </Button>
+            </div>
+          </form>
+          {formMessage && (
+            <p
+              className={`mt-4 flex items-center gap-2 text-sm ${
+                formState === "error" ? "text-destructive" : "text-emerald-700"
+              }`}
+            >
+              {formState === "error" ? (
+                <AlertCircle className="size-4" />
+              ) : (
+                <CheckCircle2 className="size-4" />
+              )}
+              {formMessage}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BedDouble className="size-4 text-primary" /> Pacientes internados
+          </CardTitle>
+          <CardDescription>
+            Pacientes cuja internação mais recente ainda está em curso (vw_pacientes_internados).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {altaError && (
+            <p className="mb-4 flex items-center gap-2 text-sm text-destructive">
+              <AlertCircle className="size-4" /> {altaError}
+            </p>
+          )}
+          <ViewStatus
+            loading={loading}
+            error={error}
+            empty={!data.length}
+            loadingLabel="Carregando pacientes internados..."
+            emptyLabel="Nenhum paciente internado no momento."
+          />
+          {!loading && !error && data.length > 0 && (
+            <div className="overflow-x-auto rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Paciente</TableHead>
+                    <TableHead>Unidade</TableHead>
+                    <TableHead>Entrada</TableHead>
+                    <TableHead>Tempo internado</TableHead>
+                    <TableHead className="w-[120px]">Ações</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                </TableHeader>
+                <TableBody>
+                  {data.map((row) => (
+                    <TableRow key={row.id_internacao}>
+                      <TableCell className="font-medium">{row.nome_paciente}</TableCell>
+                      <TableCell>{row.nome_unidade}</TableCell>
+                      <TableCell>{formatDateTime(row.data_hora_entrada)}</TableCell>
+                      <TableCell>{formatDuration(row.tempo_internado)}</TableCell>
+                      <TableCell>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={altaLoadingId === row.id_internacao}
+                          onClick={() => handleDarAlta(row.id_internacao, row.nome_paciente)}
+                        >
+                          {altaLoadingId === row.id_internacao ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            <>
+                              <LogOut className="size-4" /> Alta
+                            </>
+                          )}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 

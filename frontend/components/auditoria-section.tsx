@@ -178,7 +178,7 @@ export function AuditoriaSection() {
                 </span>
                 <span className="font-medium">Atendimento #{row.id_atendimento}</span>
                 <span className="text-muted-foreground">
-                  por {row.usuario} em {formatDateTime(row.data_hora)}
+                  por {row.usuario} em {formatDateTime(row.data_hora, "utc")}
                 </span>
               </div>
               <DiffTable before={row.dados_antigos} after={row.dados_novos} />

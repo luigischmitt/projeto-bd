@@ -2,14 +2,27 @@ import { useCallback, useEffect, useState } from "react"
 
 export const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
-export function formatDateTime(value: string) {
-  return new Date(value).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
+const BRAZIL_TZ = "America/Sao_Paulo"
+
+const DATE_TIME_FORMAT: Intl.DateTimeFormatOptions = {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: BRAZIL_TZ,
+}
+
+function parseDateTime(value: string, source: "local" | "utc" = "local") {
+  // Timestamps de auditoria vêm do Postgres (Docker) em UTC, mas sem sufixo de fuso.
+  if (source === "utc" && !/[Zz]|[+-]\d{2}:\d{2}$/.test(value)) {
+    return new Date(`${value}Z`)
+  }
+  return new Date(value)
+}
+
+export function formatDateTime(value: string, source: "local" | "utc" = "local") {
+  return parseDateTime(value, source).toLocaleString("pt-BR", DATE_TIME_FORMAT)
 }
 
 export function formatMonth(value: string) {

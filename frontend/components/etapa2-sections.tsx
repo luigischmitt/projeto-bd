@@ -276,8 +276,10 @@ export function MediaProcedimentosSection() {
         </CardTitle>
         <CardDescription>
           Coluna <code>media_tempo_procedimento</code> mantida por{" "}
-          <code>trg_atualiza_media_procedimentos</code>. Após um atendimento completo, clique em
-          Atualizar para ver a média recalculada.
+          <code>trg_atualiza_media_procedimentos</code>: é a média dos{" "}
+          <strong>tempos reais</strong> registrados em atendimentos, não inclui o tempo
+          cadastrado do catálogo. Cada novo atendimento completo com o procedimento entra no
+          cálculo; clique em Atualizar para ver a média recalculada.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
